@@ -382,7 +382,9 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
   const [isDesktop, setIsDesktop] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
+  const [shockwave, setShockwave] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const shockwaveRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -392,6 +394,49 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
     window.addEventListener('resize', checkLayout);
     return () => window.removeEventListener('resize', checkLayout);
   }, []);
+
+  useEffect(() => {
+      // Trigger Cinematic Shockwave when torch lights
+      if (appState.isTorchLit && shockwaveRef.current) {
+          const tl = gsap.timeline();
+          
+          // Sync with the VoxelTorch charge-up time (approx 1.5s charge + 0.1s drop)
+          const blastDelay = 1.55;
+
+          // Pre-charge Shake
+          tl.to(shockwaveRef.current, {
+              opacity: 0.1,
+              scale: 1.05,
+              duration: 1.5,
+              ease: "power2.in"
+          });
+
+          // THE BLAST
+          tl.set(shockwaveRef.current, { opacity: 1 }, blastDelay);
+          tl.fromTo(shockwaveRef.current, 
+            { 
+                backdropFilter: 'hue-rotate(0deg) contrast(1)',
+                scale: 1.0,
+                backgroundColor: 'rgba(255,255,255,0.8)'
+            },
+            {
+                backdropFilter: 'hue-rotate(180deg) contrast(2)',
+                scale: 1.5,
+                backgroundColor: 'rgba(255,255,255,0)',
+                duration: 0.2,
+                ease: "expo.out",
+                delay: blastDelay
+            }
+          );
+          
+          // Recovery
+          tl.to(shockwaveRef.current, {
+              opacity: 0,
+              duration: 1.0,
+              ease: "power2.out"
+          });
+      }
+  }, [appState.isTorchLit]);
 
   const calculateTimeLeft = useCallback(() => {
     if (appState.isTorchLit) {
@@ -506,6 +551,12 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
   return (
     <div className="relative w-full min-h-screen bg-[#05050a] overflow-x-hidden flex flex-col justify-center items-center">
       
+      {/* SHOCKWAVE OVERLAY */}
+      <div 
+        ref={shockwaveRef} 
+        className="fixed inset-0 z-[100] pointer-events-none opacity-0 mix-blend-screen"
+      />
+
       {/* --- CONTENT SECTION --- */}
       <div ref={containerRef} className="relative z-20 w-full flex flex-col items-center justify-center px-6 md:px-12 py-12 lg:py-8 bg-[#05050a]">
         

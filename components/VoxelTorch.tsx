@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+
+import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 
@@ -10,7 +11,6 @@ interface VoxelTorchProps {
 
 // --- SHADERS ---
 
-// A swirling plasma core that sits inside the torch cup
 const CORE_VERTEX = `
   varying vec2 vUv;
   varying vec3 vNormal;
@@ -49,10 +49,15 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
   
   // Logic Refs
   const torchGroup = useRef<THREE.Group>(null);
+  const particleSystemRef = useRef<THREE.InstancedMesh>(null);
+  const lightRef = useRef<THREE.PointLight>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
+
   const animationState = useRef({
       fireStrength: 0, // 0 to 1
       chargeLevel: 0,  // 0 to 1 (for suction effect)
       shake: 0,
+      explosion: 0,    // 0 to 1 (burst)
   });
 
   useEffect(() => {
@@ -69,6 +74,7 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
     const camDist = isMobile ? 40 : 35;
     camera.position.set(0, 0, camDist);
     camera.lookAt(0, 0, 0);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ 
         alpha: true, 
@@ -77,8 +83,8 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Shadows are expensive on mobile, disable for this specific effect to prioritize particle count
+    renderer.shadowMap.enabled = false; 
     
     mountRef.current.appendChild(renderer.domElement);
 
@@ -177,18 +183,20 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
     isoGroup.add(core);
 
     // --- PARTICLE SYSTEM (InstancedMesh) ---
-    const pCount = isMobile ? 300 : 800;
+    const pCount = isMobile ? 400 : 1000;
     const pGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
     const particles = new THREE.InstancedMesh(pGeo, pMat, pCount);
     particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     isoGroup.add(particles);
+    particleSystemRef.current = particles;
 
     // Particle Data
     const pData: { 
         x: number, y: number, z: number, 
         vx: number, vy: number, vz: number, 
-        life: number, scale: number, offset: number 
+        life: number, scale: number, offset: number,
+        type: 'fire' | 'spark'
     }[] = [];
     
     for(let i=0; i<pCount; i++) {
@@ -197,88 +205,116 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
             vx: 0, vy: 0, vz: 0,
             life: Math.random(),
             scale: Math.random(),
-            offset: Math.random() * 100
+            offset: Math.random() * 100,
+            type: Math.random() > 0.8 ? 'spark' : 'fire'
         });
     }
 
     // --- LIGHTS ---
-    // 1. Ambient - Boosted for visibility
     const ambient = new THREE.AmbientLight(0x221144, 1.0);
     scene.add(ambient);
 
-    // 2. Key Light (Front-Top-Right) - Illuminates the faces towards camera
     const keyLight = new THREE.DirectionalLight(0xa78bfa, 2.0);
     keyLight.position.set(10, 10, 20);
     scene.add(keyLight);
 
-    // 3. Rim Light (Back-Left) - Edges
     const rimLight = new THREE.DirectionalLight(0xff00de, 2.0);
     rimLight.position.set(-10, 5, -10);
     scene.add(rimLight);
 
     // 4. Flame Light (Dynamic)
-    const flameLight = new THREE.PointLight(0x00ffff, 0, 40);
+    const flameLight = new THREE.PointLight(0x00ffff, 0, 50);
     flameLight.position.set(0, 6, 0);
     isoGroup.add(flameLight);
+    lightRef.current = flameLight;
 
     // --- ANIMATION LOOP ---
     const clock = new THREE.Clock();
     const tempColor = new THREE.Color();
+    const vec3Dummy = new THREE.Vector3();
 
     // Reusable colors
     const colHot = new THREE.Color(0xffffff); // Core white
     const colMid = new THREE.Color(0x00ffff); // Cyan
     const colCool = new THREE.Color(0x7c3aed); // Purple
     const colDark = new THREE.Color(0x330033); // Smoke
+    const colSpark = new THREE.Color(0xff00de); // Pink Sparks
 
     let frameId = 0;
+    const baseCamPos = new THREE.Vector3(0, 0, camDist);
 
     const animate = () => {
         frameId = requestAnimationFrame(animate);
         const time = clock.getElapsedTime();
         const dt = 0.016; 
 
-        const { fireStrength, chargeLevel, shake } = animationState.current;
+        const { fireStrength, chargeLevel, shake, explosion } = animationState.current;
 
-        // 1. Shake Effect
+        // 1. Cinematic Camera Shake
         if (shake > 0) {
-            isoGroup.position.x = (Math.random() - 0.5) * shake;
-            isoGroup.position.z = (Math.random() - 0.5) * shake;
+            const shakeAmp = shake * 2.0; // Violent shake
+            camera.position.x = baseCamPos.x + (Math.random() - 0.5) * shakeAmp;
+            camera.position.y = baseCamPos.y + (Math.random() - 0.5) * shakeAmp;
+            camera.position.z = baseCamPos.z + (Math.random() - 0.5) * shakeAmp * 0.5;
         } else {
-            isoGroup.position.set(0,0,0);
+            camera.position.lerp(baseCamPos, 0.1);
         }
 
         // 2. Core Shader
         coreMat.uniforms.uTime.value = time;
-        // Intensity is mix of charge (suction glow) and fire (stable glow)
-        const targetIntensity = (chargeLevel * 2.0) + (fireStrength * 1.0);
+        // Intensity peaks during explosion
+        const targetIntensity = (chargeLevel * 2.0) + (fireStrength * 1.0) + (explosion * 5.0);
         coreMat.uniforms.uIntensity.value = targetIntensity;
         
         // 3. Particles Logic
         for (let i = 0; i < pCount; i++) {
             const p = pData[i];
             
-            if (chargeLevel > 0.1 && fireStrength < 0.1) {
-                // SUCTION MODE
+            // --- IGNITION EXPLOSION PHASE ---
+            if (explosion > 0.01 && p.type === 'spark') {
+                // Shoot sparks outward rapidly
+                if (p.life < 0.1) { 
+                    // Reset to center for blast
+                    p.x = 0; p.y = 3; p.z = 0;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.random() * Math.PI;
+                    const speed = 10 + Math.random() * 20;
+                    p.vx = speed * Math.sin(phi) * Math.cos(theta);
+                    p.vy = speed * Math.cos(phi);
+                    p.vz = speed * Math.sin(phi) * Math.sin(theta);
+                    p.life = 1.0; // Full life
+                }
+                
+                p.x += p.vx * dt * explosion;
+                p.y += p.vy * dt * explosion;
+                p.z += p.vz * dt * explosion;
+                p.vy -= 9.8 * dt; // Gravity
+                p.scale = Math.max(0, p.life * 2.0 * explosion);
+                tempColor.set(colHot);
+
+            } else if (chargeLevel > 0.1 && fireStrength < 0.1) {
+                // --- SUCTION PHASE ---
                 const px = p.x; const py = p.y; const pz = p.z;
-                p.x += (0 - px) * 0.1 * chargeLevel;
-                p.y += (3 - py) * 0.1 * chargeLevel;
-                p.z += (0 - pz) * 0.1 * chargeLevel;
+                // Stronger suction
+                p.x += (0 - px) * 0.15 * chargeLevel;
+                p.y += (3 - py) * 0.15 * chargeLevel;
+                p.z += (0 - pz) * 0.15 * chargeLevel;
                 
                 p.x += (Math.random()-0.5) * 0.1;
                 p.scale = Math.max(0.1, 1.0 - chargeLevel);
                 
+                // Respawn in ring
                 if (Math.abs(p.y - 3) < 0.2) {
                     const ang = Math.random() * Math.PI * 2;
-                    const r = 3 + Math.random() * 2;
+                    const r = 4 + Math.random() * 2;
                     p.x = Math.cos(ang) * r;
                     p.z = Math.sin(ang) * r;
-                    p.y = 3 + (Math.random()-0.5) * 4;
+                    p.y = 3 + (Math.random()-0.5) * 6;
                 }
                 tempColor.set(colMid).lerp(colHot, Math.random());
                 
             } else if (fireStrength > 0.01) {
-                // FIRE MODE
+                // --- FIRE PHASE ---
                 p.life += dt * (0.5 + fireStrength);
                 if (p.life > 1) {
                     p.life = 0;
@@ -312,11 +348,15 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
             }
 
             dummy.position.set(p.x, p.y, p.z);
-            if (fireStrength > 0) {
-                dummy.rotation.x += dt * 2;
-                dummy.rotation.z += dt * 2;
+            // Spin particles during explosion
+            if (explosion > 0) {
+                 dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+            } else {
+                 dummy.rotation.set(0,0,0);
             }
-            dummy.scale.setScalar(p.scale * (chargeLevel > 0 ? 1 : fireStrength)); 
+            
+            const renderScale = p.scale * (chargeLevel > 0 ? 1 : Math.max(fireStrength, explosion));
+            dummy.scale.setScalar(renderScale);
             dummy.updateMatrix();
             particles.setMatrixAt(i, dummy.matrix);
             particles.setColorAt(i, tempColor);
@@ -325,14 +365,19 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
         particles.instanceMatrix.needsUpdate = true;
         if (particles.instanceColor) particles.instanceColor.needsUpdate = true;
 
-        // 4. Lights
-        if (fireStrength > 0) {
+        // 4. Lighting Dynamics
+        if (explosion > 0) {
+            flameLight.intensity = 50 + explosion * 100; // BLINDING FLASH
+            flameLight.color.setHex(0xffffff);
+            flameLight.distance = 100;
+        } else if (fireStrength > 0) {
             const flicker = 0.8 + Math.random() * 0.4;
             flameLight.intensity = fireStrength * 40 * flicker;
             if (fireStrength > 0.9) flameLight.color.setHex(0x00ffff);
             else flameLight.color.setHex(0xffffff);
+             flameLight.distance = 50;
         } else if (chargeLevel > 0) {
-             flameLight.intensity = chargeLevel * 5;
+             flameLight.intensity = chargeLevel * 10;
              flameLight.color.setHex(0xbd00ff);
         } else {
             flameLight.intensity = 0;
@@ -360,19 +405,32 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
     };
   }, [isMobile, tilt]);
 
-  // --- IGNITION SEQUENCE ---
+  // --- LEGENDARY IGNITION SEQUENCE ---
   useEffect(() => {
      const state = animationState.current;
 
      if (isLit) {
          const tl = gsap.timeline();
+         
+         // 1. CHARGE UP (Suction) - 1.5s
+         // Sound cue: Whine pitch up
          tl.to(state, { chargeLevel: 1, duration: 1.5, ease: "power2.in" });
          tl.to(state, { shake: 0.2, duration: 1.5, ease: "expo.in" }, "<");
-         tl.to(state, { chargeLevel: 0, shake: 0, duration: 0.1 });
-         tl.to(state, { fireStrength: 1.5, duration: 0.2, ease: "expo.out" }); 
+         
+         // 2. THE DROP (Silence before blast) - 0.1s
+         tl.to(state, { chargeLevel: 0, shake: 0, duration: 0.05 });
+         
+         // 3. EXPLOSION (Blast) - 0.3s
+         // Sound cue: Boom
+         tl.to(state, { explosion: 1.0, shake: 1.0, duration: 0.1, ease: "power4.out" }); 
+         tl.to(state, { explosion: 0, shake: 0, duration: 0.5, ease: "expo.out" });
+         
+         // 4. STABILIZE FIRE
+         tl.to(state, { fireStrength: 1.5, duration: 0.1 }, "-=0.5"); 
          tl.to(state, { fireStrength: 1.0, duration: 2.0, ease: "elastic.out(1, 0.3)" });
+
      } else {
-         gsap.to(state, { fireStrength: 0, chargeLevel: 0, duration: 0.5 });
+         gsap.to(state, { fireStrength: 0, chargeLevel: 0, explosion: 0, shake: 0, duration: 0.5 });
      }
 
   }, [isLit]);

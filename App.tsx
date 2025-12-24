@@ -48,10 +48,11 @@ const App: React.FC = () => {
   // Auto-scroll to team selection when torch is lit
   useEffect(() => {
     if (appState.isTorchLit && !appState.selectedTeamId) {
-      // Delay slightly to let the torch ignition animation start playing
+      // Delay to let the torch ignition animation play and linger for effect (3s standby)
+      // 1.5s for ignition + 3.0s standby = 4500ms
       const timer = setTimeout(() => {
         teamSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 1500);
+      }, 4500); 
       return () => clearTimeout(timer);
     }
   }, [appState.isTorchLit, appState.selectedTeamId]);
