@@ -1,4 +1,5 @@
 
+
 import { GameEvent, Team, UserProfile } from './types';
 
 // Teams with detailed breakdown and themes
@@ -69,7 +70,7 @@ export const INITIAL_EVENTS: GameEvent[] = [
     bracketType: 'single',
     matches: [
       { id: 'm1', teamA: 't1', teamB: 't8', scoreA: 13, scoreB: 5, status: 'completed', startTime: '2025-10-25T10:00:00Z', round: 1, winnerId: 't1' },
-      { id: 'm3', teamA: 't3', teamB: 't6', scoreA: 12, scoreB: 12, status: 'live', startTime: '2025-10-25T12:00:00Z', streamUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&mute=1', round: 1 },
+      { id: 'm3', teamA: 't3', teamB: 't6', scoreA: 12, scoreB: 12, status: 'live', startTime: '2025-10-25T12:00:00Z', streamUrl: 'https://www.youtube.com/embed/XSXEaikz0Bc?si=77p1WxwsddnQinOj', round: 1 },
     ]
   },
   {
@@ -80,7 +81,7 @@ export const INITIAL_EVENTS: GameEvent[] = [
     description: 'King of the Iron Fist Tournament.',
     bracketType: 'double',
     matches: [
-      { id: 'm5', teamA: 't1', teamB: 't2', scoreA: 3, scoreB: 2, status: 'live', startTime: '2025-10-26T15:00:00Z', streamUrl: 'https://www.youtube.com/embed/5qap5aO4i9A?autoplay=1&mute=1', round: 1 },
+      { id: 'm5', teamA: 't1', teamB: 't2', scoreA: 3, scoreB: 2, status: 'live', startTime: '2025-10-26T15:00:00Z', streamUrl: 'https://twitch.tv/cutespiders_', round: 1 },
     ]
   },
   {

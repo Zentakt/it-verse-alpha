@@ -11,6 +11,7 @@ import QRScanner from './components/QRScanner';
 import EventModal from './components/EventModal';
 import AdminPanel from './components/AdminPanel';
 import CyberBackground from './components/CyberBackground';
+import Footer from './components/Footer';
 import { AppState, GameEvent, Match } from './types';
 import { INITIAL_EVENTS, TEAMS, INITIAL_PROFILE } from './constants';
 import confetti from 'canvas-confetti';
@@ -20,12 +21,14 @@ type IntroStage = 'loader' | 'portal' | 'content';
 
 const App: React.FC = () => {
   const [introStage, setIntroStage] = useState<IntroStage>('loader');
+  // New state to persist the portal during transition to content
+  const [showPortal, setShowPortal] = useState(false);
   const teamSectionRef = useRef<HTMLDivElement>(null);
   
   // App State
   const [appState, setAppState] = useState<AppState>({
-    // Default countdown set to 10 seconds for quick testing
-    countdownEnd: new Date(Date.now() + 10000).toISOString(),
+    // Set countdown to 15 seconds from now as requested
+    countdownEnd: new Date(Date.now() + 1000 * 15).toISOString(),
     isTorchLit: false,
     selectedTeamId: null,
     currentView: 'games'
@@ -52,6 +55,21 @@ const App: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [appState.isTorchLit, appState.selectedTeamId]);
+
+  // Handle Loader -> Portal Transition
+  const handleLoaderComplete = () => {
+    setIntroStage('portal');
+    setShowPortal(true);
+  };
+
+  // Handle Portal -> Content Transition (Seamless)
+  const handlePortalComplete = () => {
+    setIntroStage('content');
+    // Keep Portal mounted for 2 seconds while it fades out via CSS opacity
+    setTimeout(() => {
+        setShowPortal(false);
+    }, 2000);
+  };
 
   const handleTeamSelect = (teamId: string) => {
     setAppState(prev => ({ ...prev, selectedTeamId: teamId }));
@@ -108,31 +126,36 @@ const App: React.FC = () => {
     }
   }
 
-  // --- INTRO SEQUENCE MANAGEMENT ---
+  // --- RENDER ---
 
   if (introStage === 'loader') {
-    return <Loader onComplete={() => setIntroStage('portal')} />;
+    return <Loader onComplete={handleLoaderComplete} />;
   }
 
   return (
     <>
       <CyberBackground mode={bgMode} colorTheme={bgColor} />
 
-      {introStage === 'portal' && (
-        <PortalTransition onComplete={() => setIntroStage('content')} />
+      {/* PORTAL LAYER - Persists during transition to allow seamless overlay */}
+      {showPortal && (
+        <div className={`fixed inset-0 z-[50] transition-opacity duration-1000 ease-out ${introStage === 'content' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+             <PortalTransition onComplete={handlePortalComplete} />
+        </div>
       )}
 
+      {/* CONTENT LAYER - Renders underneath Portal initially */}
       {introStage === 'content' && (
         <>
             {/* 1. Initial State: Hero with Countdown -> Torch Interaction */}
             {!appState.selectedTeamId ? (
-                <div className="relative min-h-screen text-white overflow-x-hidden">
+                <div className="relative min-h-screen text-white overflow-x-hidden animate-in fade-in duration-1000">
                     <Hero appState={appState} onTorchLight={handleTorchLight} />
                     
                     {/* Render Team Lore Below Hero when lit */}
                     {appState.isTorchLit && (
                     <div ref={teamSectionRef} className="animate-in fade-in duration-1000">
                         <TeamLore onSelect={handleTeamSelect} />
+                        <Footer />
                     </div>
                     )}
                     
@@ -152,7 +175,7 @@ const App: React.FC = () => {
                     currentView={appState.currentView}
                     onNavigate={handleNavigate}
                 >
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
                         {appState.currentView === 'games' && (
                             <GamesGrid events={events} teams={TEAMS} onSelectEvent={setSelectedEvent} />
                         )}

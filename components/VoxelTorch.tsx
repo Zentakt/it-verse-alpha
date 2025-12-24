@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 
@@ -8,328 +8,376 @@ interface VoxelTorchProps {
   tilt?: number; // Rotation in Z axis (radians)
 }
 
+// --- SHADERS ---
+
+// A swirling plasma core that sits inside the torch cup
+const CORE_VERTEX = `
+  varying vec2 vUv;
+  varying vec3 vNormal;
+  void main() {
+    vUv = uv;
+    vNormal = normal;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const CORE_FRAGMENT = `
+  uniform float uTime;
+  uniform float uIntensity;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  varying vec2 vUv;
+  varying vec3 vNormal;
+
+  void main() {
+    // Noise-like swirl
+    float noise = sin(vUv.x * 20.0 + uTime * 5.0) * sin(vUv.y * 20.0 - uTime * 3.0);
+    
+    // Fresnel glow
+    float fresnel = pow(1.0 - dot(vNormal, vec3(0,0,1)), 3.0);
+    
+    vec3 col = mix(uColorA, uColorB, noise * 0.5 + 0.5);
+    col += uColorB * fresnel * 2.0;
+    
+    // Pulse intensity
+    gl_FragColor = vec4(col, uIntensity * (0.5 + fresnel * 0.5));
+  }
+`;
+
 const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt = 0 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const animationFrameRef = useRef<number>(0);
   
-  // Animation State for GSAP to manipulate
-  const torchState = useRef({
-      ignitionProgress: 0, // 0 to 1
-      lightIntensity: 0,
+  // Logic Refs
+  const torchGroup = useRef<THREE.Group>(null);
+  const animationState = useRef({
+      fireStrength: 0, // 0 to 1
+      chargeLevel: 0,  // 0 to 1 (for suction effect)
+      shake: 0,
   });
-
-  const mouseRef = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-        const x = (e.clientX / window.innerWidth) * 2 - 1;
-        const y = -(e.clientY / window.innerHeight) * 2 + 1;
-        mouseRef.current = { x, y };
-    };
-    if (!isMobile) {
-        window.addEventListener('mousemove', handleMouseMove);
-    }
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, [isMobile]);
 
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // --- SCENE SETUP ---
+    // --- SETUP ---
     const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
-    
+
     const scene = new THREE.Scene();
     
-    // Camera
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    
-    // Adjust camera position
-    const camDist = isMobile ? 31 : 25; 
-    camera.position.set(camDist, 0, camDist);
-    camera.lookAt(0, 1, 0); 
+    // Use a frontal camera to make "crossing" via Z-rotation predictable on screen
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
+    const camDist = isMobile ? 40 : 35;
+    camera.position.set(0, 0, camDist);
+    camera.lookAt(0, 0, 0);
 
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ 
+        alpha: true, 
+        antialias: true,
+        powerPreference: 'high-performance'
+    });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     
     mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
 
-    // --- LIGHTING ---
-    const ambientLight = new THREE.AmbientLight(0x2d1b4e, 0.6); 
-    scene.add(ambientLight);
+    // --- GROUP STRUCTURE ---
+    // Outer group handles the "Tilt" (Screen rotation)
+    const mainGroup = new THREE.Group();
+    mainGroup.rotation.z = tilt;
+    scene.add(mainGroup);
+    torchGroup.current = mainGroup;
 
-    const rimLight = new THREE.DirectionalLight(0xa78bfa, 1.0); 
-    rimLight.position.set(-5, 10, -5);
-    rimLight.castShadow = true;
+    // Inner group handles the "Isometric Angle" of the 3D model
+    const isoGroup = new THREE.Group();
+    // Rotate to show depth (Isometric-ish)
+    isoGroup.rotation.x = 0.5; 
+    isoGroup.rotation.y = 0.7; 
+    mainGroup.add(isoGroup);
+
+    // Voxel Geometry
+    const voxelGeo = new THREE.BoxGeometry(1, 1, 1);
+    // Brighter material for better visibility against dark background
+    const voxelMat = new THREE.MeshStandardMaterial({
+        color: 0x444444,
+        roughness: 0.6,
+        metalness: 0.5,
+    });
+    const glowMat = new THREE.MeshStandardMaterial({
+        color: 0x6d28d9,
+        emissive: 0x7c3aed,
+        emissiveIntensity: 0.8,
+        roughness: 0.2
+    });
+
+    // Handle: 8 high. Head: 4 wide.
+    const bodyVoxels: {x:number, y:number, z:number, type:'body'|'glow'}[] = [];
+    
+    // Handle
+    for(let y=-8; y<=0; y++) {
+        bodyVoxels.push({x:0, y, z:0, type:'body'});
+        if (y % 2 === 0) { // Grips
+            bodyVoxels.push({x:1, y, z:0, type:'body'});
+            bodyVoxels.push({x:-1, y, z:0, type:'body'});
+            bodyVoxels.push({x:0, y, z:1, type:'body'});
+            bodyVoxels.push({x:0, y, z:-1, type:'body'});
+        }
+        if (y === -4) {
+            bodyVoxels.push({x:0, y, z:0, type:'glow'}); // Inner energy vein
+        }
+    }
+    
+    // Cup
+    for(let y=1; y<=3; y++) {
+        for(let x=-2; x<=2; x++) {
+            for(let z=-2; z<=2; z++) {
+                if (Math.abs(x)===2 || Math.abs(z)===2) {
+                     bodyVoxels.push({x, y, z, type: y===2 ? 'glow' : 'body'});
+                }
+            }
+        }
+    }
+
+    // Create Mesh
+    const bodyMesh = new THREE.InstancedMesh(voxelGeo, voxelMat, bodyVoxels.length);
+    const glowMesh = new THREE.InstancedMesh(voxelGeo, glowMat, 20); // Reserve buffer for glows if needed separately
+    
+    let bIdx = 0;
+    const dummy = new THREE.Object3D();
+    
+    bodyVoxels.forEach(v => {
+        dummy.position.set(v.x, v.y, v.z);
+        dummy.updateMatrix();
+        // Use single mesh for structural simplicity
+        bodyMesh.setMatrixAt(bIdx++, dummy.matrix);
+    });
+    
+    bodyMesh.castShadow = true;
+    bodyMesh.receiveShadow = true;
+    isoGroup.add(bodyMesh);
+
+    // --- PLASMA CORE (Shader) ---
+    const coreGeo = new THREE.IcosahedronGeometry(1.5, 2);
+    const coreMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uTime: { value: 0 },
+            uIntensity: { value: 0 },
+            uColorA: { value: new THREE.Color(0xff00de) },
+            uColorB: { value: new THREE.Color(0x00ffff) }
+        },
+        vertexShader: CORE_VERTEX,
+        fragmentShader: CORE_FRAGMENT,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    core.position.set(0, 3, 0);
+    isoGroup.add(core);
+
+    // --- PARTICLE SYSTEM (InstancedMesh) ---
+    const pCount = isMobile ? 300 : 800;
+    const pGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    const pMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const particles = new THREE.InstancedMesh(pGeo, pMat, pCount);
+    particles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    isoGroup.add(particles);
+
+    // Particle Data
+    const pData: { 
+        x: number, y: number, z: number, 
+        vx: number, vy: number, vz: number, 
+        life: number, scale: number, offset: number 
+    }[] = [];
+    
+    for(let i=0; i<pCount; i++) {
+        pData.push({
+            x: (Math.random()-0.5)*3, y: 3 + Math.random()*2, z: (Math.random()-0.5)*3,
+            vx: 0, vy: 0, vz: 0,
+            life: Math.random(),
+            scale: Math.random(),
+            offset: Math.random() * 100
+        });
+    }
+
+    // --- LIGHTS ---
+    // 1. Ambient - Boosted for visibility
+    const ambient = new THREE.AmbientLight(0x221144, 1.0);
+    scene.add(ambient);
+
+    // 2. Key Light (Front-Top-Right) - Illuminates the faces towards camera
+    const keyLight = new THREE.DirectionalLight(0xa78bfa, 2.0);
+    keyLight.position.set(10, 10, 20);
+    scene.add(keyLight);
+
+    // 3. Rim Light (Back-Left) - Edges
+    const rimLight = new THREE.DirectionalLight(0xff00de, 2.0);
+    rimLight.position.set(-10, 5, -10);
     scene.add(rimLight);
 
-    const fillLight = new THREE.DirectionalLight(0x6d28d9, 0.4);
-    fillLight.position.set(0, 2, 10);
-    scene.add(fillLight);
+    // 4. Flame Light (Dynamic)
+    const flameLight = new THREE.PointLight(0x00ffff, 0, 40);
+    flameLight.position.set(0, 6, 0);
+    isoGroup.add(flameLight);
 
-    const flameLight = new THREE.PointLight(0xff00de, 0, 30);
-    flameLight.castShadow = true;
-    flameLight.shadow.bias = -0.0001;
-    scene.add(flameLight);
-
-    // --- TORCH HIERARCHY ---
-    const torchWrapper = new THREE.Group();
-    scene.add(torchWrapper);
-
-    const modelGroup = new THREE.Group();
-    modelGroup.rotation.z = tilt; // Apply static tilt
-    torchWrapper.add(modelGroup);
-
-    // Construct Torch
-    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-    const createVoxel = (x: number, y: number, z: number, color: number, emissive: boolean = false) => {
-        const mat = new THREE.MeshStandardMaterial({
-            color: color,
-            roughness: 0.6,
-            metalness: 0.5,
-            emissive: emissive ? color : 0x000000,
-            emissiveIntensity: emissive ? 0.5 : 0
-        });
-        const mesh = new THREE.Mesh(boxGeo, mat);
-        mesh.position.set(x, y, z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        return mesh;
-    };
-
-    const handleColor = 0x1a1a1a;
-    const metalColor = 0x666666;
-    const glowColor = 0x4c1d95;
-    
-    // Handle Construction
-    const startY = -6;
-    for(let y=startY; y<=2; y++) {
-        modelGroup.add(createVoxel(0, y, 0, handleColor));
-        if(y === startY) { 
-             modelGroup.add(createVoxel(1, y, 0, metalColor));
-             modelGroup.add(createVoxel(-1, y, 0, metalColor));
-             modelGroup.add(createVoxel(0, y, 1, metalColor));
-             modelGroup.add(createVoxel(0, y, -1, metalColor));
-             modelGroup.add(createVoxel(0, y-1, 0, glowColor, true));
-        }
-        if (y === -2 || y === 1) { 
-            modelGroup.add(createVoxel(1, y, 0, handleColor));
-            modelGroup.add(createVoxel(-1, y, 0, handleColor));
-            modelGroup.add(createVoxel(0, y, 1, handleColor));
-            modelGroup.add(createVoxel(0, y, -1, handleColor));
-        }
-    }
-    
-    const cupY = 3;
-    const headColor = 0x222222;
-    for(let x=-1; x<=1; x++) for(let z=-1; z<=1; z++) modelGroup.add(createVoxel(x, cupY, z, headColor));
-    for(let x=-2; x<=2; x++) for(let z=-2; z<=2; z++) {
-        const isCorner = Math.abs(x)===2 && Math.abs(z)===2;
-        const isWall = Math.abs(x)===2 || Math.abs(z)===2;
-        if(isWall) {
-             modelGroup.add(createVoxel(x, cupY+1, z, headColor));
-             modelGroup.add(createVoxel(x, cupY+2, z, headColor));
-             if(isCorner) {
-                 modelGroup.add(createVoxel(x, cupY+3, z, metalColor));
-                 modelGroup.add(createVoxel(x, cupY+4, z, metalColor));
-             }
-        }
-    }
-    modelGroup.add(createVoxel(0, cupY+1, 0, 0x330033, true));
-    
-    const fireOrigin = new THREE.Object3D();
-    fireOrigin.position.set(0, 5, 0); 
-    modelGroup.add(fireOrigin);
-
-    // --- PARTICLES ---
-    const particleGroup = new THREE.Group();
-    scene.add(particleGroup);
-
-    const particleCount = 120; 
-    const particles: any[] = [];
-    const colors = [0xffffff, 0x00ffff, 0xff00de, 0xd946ef, 0x7c3aed, 0x4c1d95]; 
-    const particleGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6); // Slightly smaller voxels
-
-    for(let i=0; i<particleCount; i++) {
-        const mat = new THREE.MeshStandardMaterial({
-            color: 0xffffff,
-            emissive: 0x000000,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-        });
-        const mesh = new THREE.Mesh(particleGeo, mat);
-        particleGroup.add(mesh);
-        
-        particles.push({
-            mesh,
-            speed: 0.08 + Math.random() * 0.15,
-            life: Math.random(),
-            noiseOffset: Math.random() * 1000,
-            relX: (Math.random() - 0.5) * 1.5,
-            relZ: (Math.random() - 0.5) * 1.5,
-        });
-    }
-
+    // --- ANIMATION LOOP ---
     const clock = new THREE.Clock();
-    const vec3 = new THREE.Vector3();
+    const tempColor = new THREE.Color();
+
+    // Reusable colors
+    const colHot = new THREE.Color(0xffffff); // Core white
+    const colMid = new THREE.Color(0x00ffff); // Cyan
+    const colCool = new THREE.Color(0x7c3aed); // Purple
+    const colDark = new THREE.Color(0x330033); // Smoke
+
+    let frameId = 0;
 
     const animate = () => {
+        frameId = requestAnimationFrame(animate);
         const time = clock.getElapsedTime();
-        
-        // --- INTERACTIVE ROTATION ---
-        // Smoothly look at mouse position
-        const targetRotX = mouseRef.current.y * 0.2; // Look up/down
-        const targetRotY = mouseRef.current.x * 0.3; // Look left/right
-        
-        torchWrapper.rotation.x += (targetRotX - torchWrapper.rotation.x) * 0.05;
-        torchWrapper.rotation.y += (targetRotY - torchWrapper.rotation.y) * 0.05;
-        
-        // Idle breathing
-        torchWrapper.position.y = Math.sin(time) * 0.2; 
+        const dt = 0.016; 
 
-        // Fire Logic
-        const ignition = torchState.current.ignitionProgress;
-        const intensity = torchState.current.lightIntensity;
+        const { fireStrength, chargeLevel, shake } = animationState.current;
 
-        fireOrigin.getWorldPosition(vec3);
+        // 1. Shake Effect
+        if (shake > 0) {
+            isoGroup.position.x = (Math.random() - 0.5) * shake;
+            isoGroup.position.z = (Math.random() - 0.5) * shake;
+        } else {
+            isoGroup.position.set(0,0,0);
+        }
+
+        // 2. Core Shader
+        coreMat.uniforms.uTime.value = time;
+        // Intensity is mix of charge (suction glow) and fire (stable glow)
+        const targetIntensity = (chargeLevel * 2.0) + (fireStrength * 1.0);
+        coreMat.uniforms.uIntensity.value = targetIntensity;
         
-        flameLight.position.copy(vec3);
-        flameLight.position.y += 1; 
+        // 3. Particles Logic
+        for (let i = 0; i < pCount; i++) {
+            const p = pData[i];
+            
+            if (chargeLevel > 0.1 && fireStrength < 0.1) {
+                // SUCTION MODE
+                const px = p.x; const py = p.y; const pz = p.z;
+                p.x += (0 - px) * 0.1 * chargeLevel;
+                p.y += (3 - py) * 0.1 * chargeLevel;
+                p.z += (0 - pz) * 0.1 * chargeLevel;
+                
+                p.x += (Math.random()-0.5) * 0.1;
+                p.scale = Math.max(0.1, 1.0 - chargeLevel);
+                
+                if (Math.abs(p.y - 3) < 0.2) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const r = 3 + Math.random() * 2;
+                    p.x = Math.cos(ang) * r;
+                    p.z = Math.sin(ang) * r;
+                    p.y = 3 + (Math.random()-0.5) * 4;
+                }
+                tempColor.set(colMid).lerp(colHot, Math.random());
+                
+            } else if (fireStrength > 0.01) {
+                // FIRE MODE
+                p.life += dt * (0.5 + fireStrength);
+                if (p.life > 1) {
+                    p.life = 0;
+                    const ang = Math.random() * Math.PI * 2;
+                    const r = Math.random() * 1.0;
+                    p.x = Math.cos(ang) * r;
+                    p.z = Math.sin(ang) * r;
+                    p.y = 3;
+                    p.scale = Math.random();
+                }
 
-        if (ignition > 0.01) {
-            const flicker = Math.sin(time * 25) * 0.8 + Math.cos(time * 60) * 0.4;
-            flameLight.intensity = Math.max(0, intensity + flicker);
-            const hueShift = Math.sin(time * 2) * 0.05;
-            flameLight.color.setHSL(0.85 + hueShift, 1, 0.5); 
+                const rise = dt * (3.0 + fireStrength * 5.0);
+                p.y += rise;
+                
+                const noiseFreq = 0.5;
+                const noiseAmp = 0.05 * fireStrength;
+                p.x += Math.sin(time * 5 + p.y * noiseFreq + p.offset) * noiseAmp;
+                p.z += Math.cos(time * 4 + p.y * noiseFreq + p.offset) * noiseAmp;
+                
+                let s = 0;
+                if (p.life < 0.2) s = p.life * 5;
+                else s = 1.0 - (p.life - 0.2) * 1.25;
+                s = Math.max(0, s * p.scale);
+                
+                if (p.life < 0.3) tempColor.set(colHot).lerp(colMid, p.life * 3);
+                else if (p.life < 0.7) tempColor.set(colMid).lerp(colCool, (p.life - 0.3) * 2.5);
+                else tempColor.set(colCool).lerp(colDark, (p.life - 0.7) * 3);
+
+            } else {
+                p.scale = 0;
+            }
+
+            dummy.position.set(p.x, p.y, p.z);
+            if (fireStrength > 0) {
+                dummy.rotation.x += dt * 2;
+                dummy.rotation.z += dt * 2;
+            }
+            dummy.scale.setScalar(p.scale * (chargeLevel > 0 ? 1 : fireStrength)); 
+            dummy.updateMatrix();
+            particles.setMatrixAt(i, dummy.matrix);
+            particles.setColorAt(i, tempColor);
+        }
+        
+        particles.instanceMatrix.needsUpdate = true;
+        if (particles.instanceColor) particles.instanceColor.needsUpdate = true;
+
+        // 4. Lights
+        if (fireStrength > 0) {
+            const flicker = 0.8 + Math.random() * 0.4;
+            flameLight.intensity = fireStrength * 40 * flicker;
+            if (fireStrength > 0.9) flameLight.color.setHex(0x00ffff);
+            else flameLight.color.setHex(0xffffff);
+        } else if (chargeLevel > 0) {
+             flameLight.intensity = chargeLevel * 5;
+             flameLight.color.setHex(0xbd00ff);
         } else {
             flameLight.intensity = 0;
         }
 
-        particles.forEach((p) => {
-            const currentSpeed = p.speed * (0.2 + ignition * 1.8);
-            p.life += currentSpeed * 0.016; 
-            
-            if (p.life > 1) {
-                p.life = 0;
-                const spread = 0.2 + (ignition * 0.8);
-                p.relX = (Math.random() - 0.5) * 1.5 * spread;
-                p.relZ = (Math.random() - 0.5) * 1.5 * spread;
-            }
-
-            if (ignition <= 0.01) {
-                p.mesh.visible = false;
-                return;
-            }
-            p.mesh.visible = true;
-
-            const maxHeight = 2 + (ignition * 8); 
-            const verticalRise = p.life * maxHeight;
-
-            const turbStrength = verticalRise * 0.3;
-            const noiseX = Math.sin(time * 4 + p.noiseOffset + verticalRise) * turbStrength;
-            const noiseZ = Math.cos(time * 3 + p.noiseOffset + verticalRise) * turbStrength;
-
-            // Follow the torch tip position BUT drift upwards in World Space
-            // To simulate fire reacting to movement, we lag the x/z slightly or just project from tip
-            // For simplicity in this voxel style, we project from current tip position + vertical offset
-            
-            p.mesh.position.set(
-                vec3.x + p.relX + noiseX,
-                vec3.y + verticalRise, 
-                vec3.z + p.relZ + noiseZ
-            );
-
-            p.mesh.rotation.x += 0.1;
-            p.mesh.rotation.z += 0.1;
-
-            const lifeStage = p.life;
-            let scale = 0;
-            if (lifeStage < 0.2) scale = lifeStage * 5; 
-            else scale = 1 - ((lifeStage - 0.2) / 0.8); 
-            
-            scale *= (0.3 + ignition * 0.7);
-            p.mesh.scale.setScalar(Math.max(0.001, scale));
-
-            const floatIndex = lifeStage * (colors.length - 1);
-            const index = Math.floor(floatIndex);
-            const colorHex = colors[Math.min(index, colors.length - 1)];
-            
-            p.mesh.material.color.setHex(colorHex);
-            p.mesh.material.emissive.setHex(colorHex);
-            
-            p.mesh.material.emissiveIntensity = (2.0 * (1 - lifeStage)) * ignition;
-            p.mesh.material.opacity = (scale * 2) * ignition; 
-        });
-
         renderer.render(scene, camera);
-        animationFrameRef.current = requestAnimationFrame(animate);
     };
-    
     animate();
 
     const handleResize = () => {
-       if(!mountRef.current) return;
-       const w = mountRef.current.clientWidth;
-       const h = mountRef.current.clientHeight;
-       camera.aspect = w/h;
-       camera.updateProjectionMatrix();
-       renderer.setSize(w, h);
+        if (!mountRef.current) return;
+        const w = mountRef.current.clientWidth;
+        const h = mountRef.current.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
         window.removeEventListener('resize', handleResize);
-        cancelAnimationFrame(animationFrameRef.current);
-        if (rendererRef.current) {
-            rendererRef.current.dispose();
-            mountRef.current?.removeChild(rendererRef.current.domElement);
-        }
+        cancelAnimationFrame(frameId);
+        renderer.dispose();
+        mountRef.current?.removeChild(renderer.domElement);
     };
-  }, [isMobile, tilt]); 
+  }, [isMobile, tilt]);
 
   // --- IGNITION SEQUENCE ---
   useEffect(() => {
-    const state = torchState.current;
-    
-    if (isLit) {
-        const tl = gsap.timeline();
-        tl.to(state, { 
-            ignitionProgress: 0.15, 
-            lightIntensity: 10, 
-            duration: 0.15, 
-            ease: "power2.out" 
-        })
-        .to(state, { 
-            ignitionProgress: 0.1, 
-            lightIntensity: 1, 
-            duration: 0.2, 
-            ease: "power1.in" 
-        })
-        .to(state, { 
-            ignitionProgress: 1, 
-            lightIntensity: 5, 
-            duration: 2.5, 
-            ease: "elastic.out(1, 0.5)" 
-        });
+     const state = animationState.current;
 
-    } else {
-        gsap.to(state, { 
-            ignitionProgress: 0, 
-            lightIntensity: 0, 
-            duration: 0.8, 
-            ease: "power2.in" 
-        });
-    }
+     if (isLit) {
+         const tl = gsap.timeline();
+         tl.to(state, { chargeLevel: 1, duration: 1.5, ease: "power2.in" });
+         tl.to(state, { shake: 0.2, duration: 1.5, ease: "expo.in" }, "<");
+         tl.to(state, { chargeLevel: 0, shake: 0, duration: 0.1 });
+         tl.to(state, { fireStrength: 1.5, duration: 0.2, ease: "expo.out" }); 
+         tl.to(state, { fireStrength: 1.0, duration: 2.0, ease: "elastic.out(1, 0.3)" });
+     } else {
+         gsap.to(state, { fireStrength: 0, chargeLevel: 0, duration: 0.5 });
+     }
+
   }, [isLit]);
 
-  return <div ref={mountRef} className="w-full h-full" title="Interactive Torch" />;
+  return <div ref={mountRef} className="w-full h-full" />;
 };
 
 export default VoxelTorch;

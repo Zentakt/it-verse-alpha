@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap" rel="stylesheet">
     <style>
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
@@ -71,7 +71,11 @@
       }
 
       body {
-        font-family: 'Silkscreen', cursive;
+        font-family: 'Jersey 10', sans-serif;
+        font-size: 28px; /* Significantly increased for better readability */
+        letter-spacing: 0.15em; /* Wide tracking to separate characters */
+        word-spacing: 0.3em; /* Ensure words don't merge */
+        line-height: 1.6;
       }
     </style>
     <script>
@@ -79,9 +83,12 @@
         theme: {
           extend: {
             fontFamily: {
-              'pixel': ['"Silkscreen"', 'cursive'],
-              'cyber': ['"Silkscreen"', 'cursive'],
-              'ui': ['"Silkscreen"', 'cursive'],
+              'sans': ['"Jersey 10"', 'sans-serif'],
+              'serif': ['"Jersey 10"', 'sans-serif'],
+              'mono': ['"Jersey 10"', 'sans-serif'],
+              'pixel': ['"Jersey 10"', 'sans-serif'],
+              'cyber': ['"Jersey 10"', 'sans-serif'],
+              'ui': ['"Jersey 10"', 'sans-serif'],
             },
             colors: {
               purple: {

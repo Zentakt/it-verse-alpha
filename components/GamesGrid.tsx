@@ -5,6 +5,51 @@ import { Play, X, Activity, Radio, Users, Zap, Trophy, Minimize2, Maximize2, Arr
 import * as THREE from 'three';
 import gsap from 'gsap';
 
+// --- TWITCH PLAYER COMPONENT (JS SDK) ---
+const TwitchPlayer: React.FC<{ channel: string }> = ({ channel }) => {
+    const embedId = "twitch-embed";
+
+    useEffect(() => {
+        // Clear any existing player
+        const container = document.getElementById(embedId);
+        if (container) container.innerHTML = '';
+
+        const initPlayer = () => {
+            // @ts-ignore
+            if (window.Twitch && window.Twitch.Player) {
+                // @ts-ignore
+                new window.Twitch.Player(embedId, {
+                    channel: channel,
+                    width: "100%",
+                    height: "100%",
+                    // Parent is required for Twitch embeds to work in most environments
+                    parent: [window.location.hostname, 'localhost', '127.0.0.1']
+                });
+            }
+        };
+
+        // Check if script exists
+        if (!document.getElementById('twitch-js-sdk')) {
+            const script = document.createElement('script');
+            script.id = 'twitch-js-sdk';
+            script.src = "https://player.twitch.tv/js/embed/v1.js";
+            script.async = true;
+            script.onload = initPlayer;
+            document.body.appendChild(script);
+        } else {
+            // If script is already loaded, wait a tick to ensure window.Twitch is ready or just init
+            setTimeout(initPlayer, 500);
+        }
+
+        return () => {
+            const c = document.getElementById(embedId);
+            if (c) c.innerHTML = '';
+        };
+    }, [channel]);
+
+    return <div id={embedId} className="w-full h-full bg-black" />;
+};
+
 // --- OPTIMIZED TACTICAL BACKGROUND (Context Aware) ---
 const TacticalMap: React.FC<{ color: string; intensity?: number }> = ({ color, intensity = 1 }) => {
     const mountRef = useRef<HTMLDivElement>(null);
@@ -274,7 +319,7 @@ interface GamesGridProps {
   onSelectEvent: (event: GameEvent) => void;
 }
 
-const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) => {
+const GamesGrid: React.FC<GamesGridProps> = ({ events, teams }) => {
   const [activeEventId, setActiveEventId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isPlaying, setIsPlaying] = useState(false); // Video Playing State
@@ -325,40 +370,39 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
       }
   };
 
-  // Improved Video ID Extractor (Handle more edge cases)
-  const getYouTubeVideoId = (url: string) => {
-      // Handles: youtu.be, youtube.com/embed, youtube.com/watch, youtube.com/v
-      // Capture group 1 is the ID
-      const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
-      return match ? match[1] : null;
+  // Improved Video Helper
+  const getStreamConfig = (url: string) => {
+      if (!url) return { type: 'unknown', id: '' };
+
+      // Twitch Channel
+      if (url.includes('twitch.tv')) {
+          const match = url.match(/(?:twitch\.tv\/)([^/?]+)/);
+          const channel = match ? match[1] : '';
+          // Handle 'player.twitch.tv' format if passed directly
+          if (url.includes('player.twitch.tv')) {
+              const chMatch = url.match(/channel=([^&]+)/);
+              if (chMatch) return { type: 'twitch', id: chMatch[1] };
+          }
+          if (channel) return { type: 'twitch', id: channel };
+      }
+
+      // YouTube ID
+      const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const ytMatch = url.match(ytRegExp);
+      if (ytMatch && ytMatch[2].length === 11) {
+          return { type: 'youtube', id: ytMatch[2] };
+      }
+
+      // Fallback for direct YouTube embed URL
+      if (url.includes('youtube.com/embed/')) {
+           return { type: 'youtube', id: url }; // treat as generic URL if extraction fails
+      }
+
+      return { type: 'unknown', id: url };
   };
 
-  // Safer Embed URL Generator (Fix Error 153)
-  const embedUrl = useMemo(() => {
-      if (!activeMatch?.streamUrl) return '';
-      
-      const videoId = getYouTubeVideoId(activeMatch.streamUrl);
-      if (!videoId) return activeMatch.streamUrl; 
-
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const params = new URLSearchParams();
-      
-      // Standard embed parameters
-      params.set('autoplay', '1');
-      params.set('mute', '1');
-      params.set('playsinline', '1'); // Critical for mobile
-      params.set('rel', '0');
-      params.set('modestbranding', '1');
-      
-      // SECURITY FIX: Injecting origin and widget_referrer matches the current domain.
-      // This is the primary fix for "Error 153" in restricted iframe environments.
-      if (origin) {
-          params.set('origin', origin);
-          params.set('widget_referrer', origin);
-      }
-      params.set('enablejsapi', '1'); // Standard practice for controlled embeds
-
-      return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+  const streamConfig = useMemo(() => {
+      return getStreamConfig(activeMatch?.streamUrl || '');
   }, [activeMatch?.streamUrl]);
 
   // --- FLIP ANIMATION ---
@@ -513,16 +557,37 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
                             relative w-full aspect-video
                             ${isTheater || window.innerWidth >= 1024 ? 'max-h-full max-w-full' : ''}
                         `}>
-                            {/* IFRAME STREAM */}
+                            {/* STREAM RENDERER */}
                             {isPlaying && activeMatch?.streamUrl ? (
                                 <div className="absolute inset-0 w-full h-full animate-in fade-in duration-500 bg-black group/video">
-                                    <iframe 
-                                        src={embedUrl} 
-                                        className="w-full h-full border-0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                        referrerPolicy="strict-origin-when-cross-origin"
-                                        allowFullScreen
-                                    />
+                                    
+                                    {/* Twitch JS SDK Player */}
+                                    {streamConfig.type === 'twitch' && (
+                                        <TwitchPlayer channel={streamConfig.id} />
+                                    )}
+
+                                    {/* YouTube Iframe */}
+                                    {streamConfig.type === 'youtube' && (
+                                        <iframe 
+                                            src={`https://www.youtube.com/embed/${streamConfig.id.includes('http') ? streamConfig.id.split('/').pop() : streamConfig.id}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                                            className="w-full h-full border-0"
+                                            title={activeEvent.title}
+                                            frameBorder="0"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            referrerPolicy="strict-origin-when-cross-origin"
+                                            allowFullScreen
+                                        />
+                                    )}
+
+                                    {/* Unknown Source Fallback */}
+                                    {streamConfig.type === 'unknown' && (
+                                         <iframe 
+                                            src={activeMatch.streamUrl}
+                                            className="w-full h-full border-0"
+                                            title="Stream"
+                                            allowFullScreen
+                                         />
+                                    )}
                                     
                                     {/* THEATER CONTROLS OVERLAY (Mobile Friendly) */}
                                     {isTheater && (
@@ -559,11 +624,11 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
                             ) : (
                                 /* Placeholder Image & Play Trigger */
                                 <>
-                                    <img src={activeEvent.image} className="absolute inset-0 w-full h-full object-cover opacity-60 blur-sm scale-110" />
+                                    <img src={activeEvent.image} className="absolute inset-0 w-full h-full object-cover opacity-60 blur-sm scale-110" alt="Background" />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30"></div>
                                     
                                     <div className="relative z-10 w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
-                                         {activeMatch?.status === 'live' ? (
+                                         {activeMatch?.streamUrl ? (
                                             <>
                                                 <button 
                                                     onClick={() => setIsPlaying(true)}
@@ -594,20 +659,28 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
                     `}>
                         {/* Match Score Compact Header */}
                         <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#0e0e12] shrink-0">
-                            <div className="flex flex-col items-center w-16">
-                                <span className="text-2xl mb-1">{activeTeamA?.logo}</span>
-                                <span className="text-[10px] font-bold text-gray-400 tracking-widest">{activeTeamA?.id.toUpperCase()}</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <div className="text-xl font-black font-mono text-white tracking-widest bg-white/5 px-4 py-1 rounded border border-white/10">
-                                    {activeMatch?.scoreA} : {activeMatch?.scoreB}
-                                </div>
-                                <span className="text-[8px] text-red-500 font-bold mt-1 animate-pulse">LIVE</span>
-                            </div>
-                            <div className="flex flex-col items-center w-16">
-                                <span className="text-2xl mb-1">{activeTeamB?.logo}</span>
-                                <span className="text-[10px] font-bold text-gray-400 tracking-widest">{activeTeamB?.id.toUpperCase()}</span>
-                            </div>
+                            {activeMatch && activeTeamA && activeTeamB ? (
+                                <>
+                                    <div className="flex flex-col items-center w-16">
+                                        <span className="text-2xl mb-1">{activeTeamA.logo}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 tracking-widest">{activeTeamA.id.toUpperCase()}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center">
+                                        <div className="text-xl font-black font-mono text-white tracking-widest bg-white/5 px-4 py-1 rounded border border-white/10">
+                                            {activeMatch.scoreA} : {activeMatch.scoreB}
+                                        </div>
+                                        <span className={`text-[8px] font-bold mt-1 animate-pulse ${activeMatch.status === 'live' ? 'text-red-500' : 'text-gray-500'}`}>
+                                            {activeMatch.status === 'live' ? 'LIVE' : activeMatch.status.toUpperCase()}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col items-center w-16">
+                                        <span className="text-2xl mb-1">{activeTeamB.logo}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 tracking-widest">{activeTeamB.id.toUpperCase()}</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="w-full text-center text-xs text-gray-500 font-mono py-2">NO ACTIVE MATCH DATA</div>
+                            )}
                         </div>
 
                         {/* Telemetry Module (Scrollable) */}
