@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Jersey+10&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
@@ -71,11 +72,14 @@
       }
 
       body {
+        font-family: 'Inter', sans-serif; /* Changed to Inter for readability */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      h1, h2, h3, h4, .font-cyber, .font-pixel {
         font-family: 'Jersey 10', sans-serif;
-        font-size: 28px; /* Significantly increased for better readability */
-        letter-spacing: 0.15em; /* Wide tracking to separate characters */
-        word-spacing: 0.3em; /* Ensure words don't merge */
-        line-height: 1.6;
+        letter-spacing: 0.05em;
       }
     </style>
     <script>
@@ -83,12 +87,12 @@
         theme: {
           extend: {
             fontFamily: {
-              'sans': ['"Jersey 10"', 'sans-serif'],
+              'sans': ['"Inter"', 'sans-serif'],
               'serif': ['"Jersey 10"', 'sans-serif'],
               'mono': ['"Jersey 10"', 'sans-serif'],
               'pixel': ['"Jersey 10"', 'sans-serif'],
               'cyber': ['"Jersey 10"', 'sans-serif'],
-              'ui': ['"Jersey 10"', 'sans-serif'],
+              'ui': ['"Inter"', 'sans-serif'],
             },
             colors: {
               purple: {
@@ -118,7 +122,8 @@
     "react": "https://aistudiocdn.com/react@^19.2.1",
     "three": "https://aistudiocdn.com/three@^0.181.2",
     "gsap": "https://aistudiocdn.com/gsap@^3.13.0",
-    "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4"
+    "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
+    "gsap/": "https://esm.sh/gsap@^3.14.2/"
   }
 }
 </script>

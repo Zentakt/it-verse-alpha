@@ -5,7 +5,7 @@ import { AppState } from '../types';
 import gsap from 'gsap';
 import confetti from 'canvas-confetti';
 import * as THREE from 'three';
-import { X, Lock } from 'lucide-react';
+import { X, Lock, Zap, AlertTriangle } from 'lucide-react';
 
 interface HeroProps {
   appState: AppState;
@@ -24,7 +24,6 @@ const TITLE_VERTEX = `
     vec3 pos = position;
     
     // Subtle parallax tilt
-    // Multiplied by uHover so it's static when not interacted with (saves battery visually)
     float tiltX = -uMouse.y * 0.1 * uHover;
     float tiltY = uMouse.x * 0.1 * uHover;
     
@@ -47,7 +46,6 @@ const TITLE_FRAGMENT = `
   uniform float uDissolve;    // 0 = solid, 1 = dissolved
   uniform float uRGBShift;    // Chromatic aberration intensity
   
-  // Fast pseudo-random
   float rand(vec2 n) { 
     return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453);
   }
@@ -65,18 +63,13 @@ const TITLE_FRAGMENT = `
   void main() {
     vec2 uv = vUv;
     
-    // 1. MATERIALIZATION (Dissolve)
-    // Noise pattern for organic burn-in reveal
     float n = noise(uv * 20.0 + uTime); 
     if (n < uDissolve) discard;
 
-    // 2. GLITCH DISPLACEMENT
-    // Blocks of pixels shifting horizontally
     vec2 block = floor(uv * vec2(20.0, 40.0) + uTime * 5.0);
     float blockNoise = rand(block);
     float displace = 0.0;
     
-    // Only glitch if uGlitch > 0 or random sporadic glitch
     float sporadic = step(0.99, rand(vec2(uTime * 2.0, 0.0))) * 0.1;
     float intensity = uGlitch + sporadic;
     
@@ -85,35 +78,25 @@ const TITLE_FRAGMENT = `
     }
     vec2 distUv = uv + vec2(displace, 0.0);
 
-    // 3. CHROMATIC ABERRATION (RGB Split)
-    // Separation increases with glitch intensity
     float shift = uRGBShift + (intensity * 0.02);
     
     vec4 cr = texture2D(uTexture, distUv + vec2(shift, 0.0));
     vec4 cg = texture2D(uTexture, distUv);
     vec4 cb = texture2D(uTexture, distUv - vec2(shift, 0.0));
     
-    // 4. HOLO-INTERFERENCE
-    // Scanlines
     float scan = sin(uv.y * 800.0) * 0.04;
-    // Moving light band (Sheen)
     float sheen = smoothstep(0.0, 0.15, 0.1 - abs(uv.x + uv.y * 0.2 - (sin(uTime * 0.5) * 2.0 + 0.5)));
     
-    // Combine channels
     vec3 color = vec3(cr.r, cg.g, cb.b);
     
-    // Apply Effects
-    color += vec3(1.0) * sheen * 0.5; // Add shine
-    color -= scan; // Subtract scanlines
+    color += vec3(1.0) * sheen * 0.5; 
+    color -= scan; 
     
-    // 5. BURN EDGE (During Dissolve)
-    // Bright cyan edge where the noise meets the dissolve threshold
     if (n < uDissolve + 0.05 && uDissolve > 0.0) {
         color = vec3(0.2, 1.0, 1.0);
-        color *= 2.0; // HDR bloom effect
+        color *= 2.0; 
     }
 
-    // Alpha mask from texture green channel (assuming white text)
     float alpha = cg.a;
     if (alpha < 0.01 && n >= uDissolve + 0.05) discard;
 
@@ -133,19 +116,20 @@ const LegendaryTitle = () => {
         const height = mountRef.current.clientHeight;
         const isMobile = window.innerWidth < 768;
 
-        // 1. Scene & Camera
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-        // Fixed Z position, we will scale the plane to fit
         camera.position.z = 10; 
 
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
+        // PERFORMANCE: Disable antialias on mobile, lower pixel ratio
+        const renderer = new THREE.WebGLRenderer({ 
+            alpha: true, 
+            antialias: !isMobile, 
+            powerPreference: 'high-performance' 
+        });
         renderer.setSize(width, height);
-        // Optimize for mobile (1.5x is a good balance of sharp vs perf)
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.0 : 1.5));
         mountRef.current.appendChild(renderer.domElement);
 
-        // 2. High-Res Texture Generation
         const createTitleTexture = () => {
             const canvas = document.createElement('canvas');
             canvas.width = 2048;
@@ -157,8 +141,6 @@ const LegendaryTitle = () => {
             const cx = 1024;
             const cy = 512;
 
-            // --- IT-VERSE ---
-            // Gradient: Metallic/Holographic
             const g1 = ctx.createLinearGradient(0, 200, 0, 800);
             g1.addColorStop(0, '#ffffff');
             g1.addColorStop(0.4, '#a5b4fc');
@@ -170,19 +152,15 @@ const LegendaryTitle = () => {
             ctx.textBaseline = 'middle';
             ctx.font = '900 600px "Jersey 10"'; 
             
-            // Text Shadow (Glow)
             ctx.shadowColor = 'rgba(124, 58, 237, 0.6)'; 
             ctx.shadowBlur = 40;
             ctx.fillText("IT-VERSE", cx, cy - 80);
             
-            // Stroke for crispness
             ctx.shadowBlur = 0;
             ctx.lineWidth = 4;
             ctx.strokeStyle = 'white';
             ctx.strokeText("IT-VERSE", cx, cy - 80);
 
-            // --- 2025 ---
-            // TIGHT LOCKUP: Placed immediately below
             const g2 = ctx.createLinearGradient(0, 800, 2048, 800);
             g2.addColorStop(0.4, '#c084fc'); 
             g2.addColorStop(0.6, '#f472b6'); 
@@ -192,12 +170,8 @@ const LegendaryTitle = () => {
             ctx.shadowColor = 'rgba(236, 72, 153, 0.8)';
             ctx.shadowBlur = 30;
             
-            // Approx spacing logic:
-            // IT-VERSE center y = 432. Font 600. Bottom ~ 732.
-            // 2025 Top should be around 750.
             ctx.fillText("2025", cx, cy + 280); 
 
-            // CRT Scanlines baked into texture
             ctx.fillStyle = 'rgba(0,0,0,0.1)';
             for(let i=0; i<1024; i+=8) {
                 ctx.fillRect(0, i, 2048, 3);
@@ -210,9 +184,6 @@ const LegendaryTitle = () => {
 
         const texture = createTitleTexture();
 
-        // 3. Geometry & Shader
-        // Aspect ratio of the visible text on texture (approx 2048 / 900)
-        // We use a 16:8 plane to contain it comfortably
         const geometry = new THREE.PlaneGeometry(16, 8);
         const material = new THREE.ShaderMaterial({
             uniforms: {
@@ -235,76 +206,33 @@ const LegendaryTitle = () => {
         scene.add(plane);
         sceneRef.current = { plane, material };
 
-        // 4. ANIMATION SEQUENCE ("Glitch into Reality")
         const startIntro = () => {
             const tl = gsap.timeline({ delay: 0.5 });
-            
-            // Step 1: Materialize (Dissolve 1 -> 0)
-            tl.to(material.uniforms.uDissolve, {
-                value: 0.0,
-                duration: 1.5,
-                ease: "power2.inOut"
-            });
-
-            // Step 2: Snap Color (RGB Shift reduces)
-            tl.to(material.uniforms.uRGBShift, {
-                value: 0.002, // Tiny residual shift for style
-                duration: 1.0,
-                ease: "expo.out"
-            }, "-=0.5");
-
-            // Step 3: Stabilize Geometry (Glitch 1 -> 0)
-            tl.to(material.uniforms.uGlitch, {
-                value: 0.0,
-                duration: 0.8,
-                ease: "elastic.out(1, 0.5)"
-            }, "-=0.8");
+            tl.to(material.uniforms.uDissolve, { value: 0.0, duration: 1.5, ease: "power2.inOut" });
+            tl.to(material.uniforms.uRGBShift, { value: 0.002, duration: 1.0, ease: "expo.out" }, "-=0.5");
+            tl.to(material.uniforms.uGlitch, { value: 0.0, duration: 0.8, ease: "elastic.out(1, 0.5)" }, "-=0.8");
         };
 
-        // 5. RESPONSIVE LOGIC
         const handleResize = () => {
             if (!mountRef.current) return;
             const w = mountRef.current.clientWidth;
             const h = mountRef.current.clientHeight;
-            
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
             renderer.setSize(w, h);
-
-            // Responsive Scaling Math:
-            // We want the plane (width 16 units) to fit within the camera frustum width
-            // with some margin.
-            // Frustum Width at Z=0 (given Cam Z=10, FOV=45)
-            // Height = 2 * tan(45/2) * 10 = 2 * 0.4142 * 10 = 8.28
-            // Width = Height * aspect
             const visibleHeight = 2 * Math.tan((camera.fov * Math.PI) / 360) * camera.position.z;
             const visibleWidth = visibleHeight * camera.aspect;
-
-            // Target width coverage:
-            // Mobile: 95% of screen width (Maximize size)
-            // Desktop: 80% of screen width (Cleaner look)
             const targetPercentage = w < 768 ? 0.95 : 0.80;
-            
-            // Calculate scale factor
-            // Plane width is 16. We want 16 * scale = visibleWidth * targetPercentage
             let scale = (visibleWidth * targetPercentage) / 16;
-            
-            // Clamp max scale to avoid it looking comically large on ultra-wide
             scale = Math.min(scale, 1.2); 
-            
             plane.scale.setScalar(scale);
         };
-        
-        // Initial resize
         handleResize();
 
-        // 6. Interaction
         const onMouseMove = (e: MouseEvent) => {
             mouseRef.current.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouseRef.current.y = -(e.clientY / window.innerHeight) * 2 + 1;
             gsap.to(hoverRef, { current: 1, duration: 0.5 });
-            
-            // Poke effect: Rapid mouse movement triggers slight glitch
             if (Math.abs(e.movementX) > 20 || Math.abs(e.movementY) > 20) {
                  gsap.to(material.uniforms.uGlitch, { value: 0.2, duration: 0.1, yoyo: true, repeat: 1 });
             }
@@ -314,7 +242,6 @@ const LegendaryTitle = () => {
             const t = e.touches[0];
             mouseRef.current.x = (t.clientX / window.innerWidth) * 2 - 1;
             mouseRef.current.y = -(t.clientY / window.innerHeight) * 2 + 1;
-            // Touch always counts as hover
             gsap.to(hoverRef, { current: 1, duration: 0.5 });
         }
         
@@ -327,35 +254,23 @@ const LegendaryTitle = () => {
         window.addEventListener('touchmove', onTouchMove);
         window.addEventListener('touchend', onTouchEnd);
 
-        // 7. Render Loop
         const clock = new THREE.Clock();
         let frameId = 0;
 
         const animate = () => {
             const t = clock.getElapsedTime();
-            
             material.uniforms.uTime.value = t;
-            
-            // Smoothly interpolate mouse/hover interaction
             material.uniforms.uMouse.value.lerp(mouseRef.current, 0.05);
             material.uniforms.uHover.value = THREE.MathUtils.lerp(material.uniforms.uHover.value, hoverRef.current, 0.05);
-
-            // Float Animation (Subtle breathing)
             plane.position.y = Math.sin(t * 0.5) * 0.15;
-
             renderer.render(scene, camera);
             frameId = requestAnimationFrame(animate);
-            
-            // Decay hover if no input
             hoverRef.current *= 0.96;
         };
 
-        // Wait for font before starting
         document.fonts.ready.then(() => {
-            // Re-render texture to ensure font is loaded
              const newTex = createTitleTexture();
              if(newTex) material.uniforms.uTexture.value = newTex;
-             
              animate();
              startIntro();
         });
@@ -382,9 +297,14 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
   const [isDesktop, setIsDesktop] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
-  const [shockwave, setShockwave] = useState(false);
+  
+  // Cinematic State
+  const [isIgniting, setIsIgniting] = useState(false);
+  const [cinematicText, setCinematicText] = useState("");
+
   const containerRef = useRef<HTMLDivElement>(null);
   const shockwaveRef = useRef<HTMLDivElement>(null);
+  const countdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -395,52 +315,9 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
     return () => window.removeEventListener('resize', checkLayout);
   }, []);
 
-  useEffect(() => {
-      // Trigger Cinematic Shockwave when torch lights
-      if (appState.isTorchLit && shockwaveRef.current) {
-          const tl = gsap.timeline();
-          
-          // Sync with the VoxelTorch charge-up time (approx 1.5s charge + 0.1s drop)
-          const blastDelay = 1.55;
-
-          // Pre-charge Shake
-          tl.to(shockwaveRef.current, {
-              opacity: 0.1,
-              scale: 1.05,
-              duration: 1.5,
-              ease: "power2.in"
-          });
-
-          // THE BLAST
-          tl.set(shockwaveRef.current, { opacity: 1 }, blastDelay);
-          tl.fromTo(shockwaveRef.current, 
-            { 
-                backdropFilter: 'hue-rotate(0deg) contrast(1)',
-                scale: 1.0,
-                backgroundColor: 'rgba(255,255,255,0.8)'
-            },
-            {
-                backdropFilter: 'hue-rotate(180deg) contrast(2)',
-                scale: 1.5,
-                backgroundColor: 'rgba(255,255,255,0)',
-                duration: 0.2,
-                ease: "expo.out",
-                delay: blastDelay
-            }
-          );
-          
-          // Recovery
-          tl.to(shockwaveRef.current, {
-              opacity: 0,
-              duration: 1.0,
-              ease: "power2.out"
-          });
-      }
-  }, [appState.isTorchLit]);
-
   const calculateTimeLeft = useCallback(() => {
-    if (appState.isTorchLit) {
-        setShowLockScreen(false);
+    // If torch is lit or we are in the middle of ignition cinematic, stop the normal timer
+    if (appState.isTorchLit || isIgniting) {
         return null;
     }
     const now = new Date().getTime();
@@ -455,17 +332,114 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
         s: Math.floor((difference / 1000) % 60),
       };
     }
-    setShowLockScreen(false);
     return null;
-  }, [appState.countdownEnd, appState.isTorchLit]);
+  }, [appState.countdownEnd, appState.isTorchLit, isIgniting]);
 
+
+  // --- CINEMATIC IGNITION SEQUENCE ---
+  const playIgnitionSequence = useCallback(() => {
+    if (isIgniting || appState.isTorchLit) return;
+    setIsIgniting(true);
+    setShowLockScreen(false);
+
+    const tl = gsap.timeline({
+        onComplete: () => {
+            // Sequence Finished
+            setIsIgniting(false);
+        }
+    });
+
+    if (!shockwaveRef.current) return;
+
+    // 1. THE BUILDUP (0.0s - 2.0s)
+    // Shake countdown
+    if (countdownRef.current) {
+        tl.to(countdownRef.current, {
+            scale: 1.1,
+            rotation: () => (Math.random() - 0.5) * 5,
+            opacity: 0.5,
+            duration: 0.5,
+            repeat: 3,
+            yoyo: true,
+            ease: "rough({ strength: 2, points: 20, template: none, taper: none, randomize: true, clamp: false })"
+        });
+        
+        // Implode Countdown
+        tl.to(countdownRef.current, {
+            scale: 0.1,
+            opacity: 0,
+            duration: 0.4,
+            ease: "back.in(2)"
+        }, ">");
+    }
+
+    // 2. DARK CHARGE (Simultaneous with implode)
+    tl.add(() => setCinematicText("ENERGY SPIKE DETECTED"), "<");
+    tl.to(shockwaveRef.current, {
+        opacity: 1,
+        backgroundColor: 'rgba(0,0,0,0.9)', // Dim the world
+        // PERFORMANCE: Removed backdropFilter
+        scale: 1.0,
+        duration: 2.0,
+        ease: "power2.inOut"
+    }, 0);
+
+    // Cinematic Text Flicker
+    tl.to(".cinematic-text", {
+        opacity: 1,
+        duration: 0.1,
+        repeat: 5,
+        yoyo: true
+    }, "<0.5");
+
+    // 3. THE SINGULARITY (Hold breath)
+    tl.add(() => setCinematicText("IGNITION IMMINENT"), ">-0.5");
+    tl.to(shockwaveRef.current, {
+        backgroundColor: '#000000',
+        duration: 0.5,
+        ease: "expo.in"
+    }, ">");
+
+    // 4. THE WHITEOUT FLASH (The trigger)
+    tl.to(shockwaveRef.current, {
+        backgroundColor: '#ffffff',
+        // PERFORMANCE: Removed backdropFilter
+        duration: 0.1,
+        ease: "power4.in",
+        onComplete: () => {
+            // !!! THIS IS THE MOMENT THE TORCH LIGHTS !!!
+            onTorchLight();
+            
+            // Fire Confetti at the peak of the flash
+            confetti({
+                particleCount: 150, // Reduced from 200
+                spread: 100, // Reduced from 120
+                origin: { y: 0.5 },
+                colors: ['#ffffff', '#ff00de', '#00ffff'],
+                zIndex: 200
+            });
+        }
+    });
+
+    // 5. REVEAL (Fade out flash to show lit torch)
+    tl.to(shockwaveRef.current, {
+        opacity: 0,
+        duration: 2.0,
+        ease: "power2.out",
+        delay: 0.1
+    });
+
+  }, [appState.isTorchLit, isIgniting, onTorchLight]);
+
+
+  // Timer Logic
   useEffect(() => {
-    // Entrance Animation for non-3D parts
-    if (containerRef.current) {
+    // Initial entrance
+    if (containerRef.current && !appState.isTorchLit && !isIgniting) {
         const titleParts = containerRef.current.querySelectorAll('.anim-entry');
         gsap.fromTo(titleParts, 
             { y: 30, opacity: 0 },
-            { y: 0, opacity: 1, duration: 1, stagger: 0.1, ease: "power3.out", delay: 1.5 } // Delayed to sync with 3D title intro
+            { y: 0, opacity: 1, duration: 1, stagger: 0.1, ease: "power3.out", delay: 1.5 }
         );
     }
     
@@ -475,28 +449,26 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
       const tl = calculateTimeLeft();
       setTimeLeft(tl);
       
-      if (!tl && !appState.isTorchLit) {
-        const diff = new Date(appState.countdownEnd).getTime() - new Date().getTime();
-        if (diff <= 0) {
-            onTorchLight();
-            confetti({
-              particleCount: 150,
-              spread: 80,
-              origin: { y: 0.6 },
-              colors: ['#7c3aed', '#ff00de', '#00ffff']
-            });
-        }
+      // Check if time is up AND we haven't started ignition yet
+      if (!tl && !appState.isTorchLit && !isIgniting) {
+         const now = new Date().getTime();
+         const end = new Date(appState.countdownEnd).getTime();
+         if (now >= end) {
+             playIgnitionSequence();
+         }
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [appState.countdownEnd, appState.isTorchLit, calculateTimeLeft, onTorchLight]);
+  }, [appState.countdownEnd, appState.isTorchLit, calculateTimeLeft, playIgnitionSequence, isIgniting]);
+
 
   // Legendary Countdown Component
   const renderLegendaryCountdown = () => {
-    if (!appState.isTorchLit && timeLeft) {
+    // Hide countdown if torch is lit OR if we are in the cinematic ignition phase
+    if (!appState.isTorchLit && timeLeft && !isIgniting) {
         return (
-            <div className="relative z-50 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-700">
+            <div ref={countdownRef} className="relative z-50 flex flex-col items-center justify-center animate-in fade-in zoom-in duration-700">
                 {/* Header Badge */}
                 <div className="mb-4 md:mb-6 flex items-center gap-3 bg-black/80 backdrop-blur-md border border-red-500/50 px-5 py-2 rounded-full shadow-[0_0_30px_rgba(239,68,68,0.4)] transform hover:scale-105 transition-transform">
                      <Lock size={12} className="text-red-500 animate-pulse" />
@@ -551,11 +523,18 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
   return (
     <div className="relative w-full min-h-screen bg-[#05050a] overflow-x-hidden flex flex-col justify-center items-center">
       
-      {/* SHOCKWAVE OVERLAY */}
+      {/* SHOCKWAVE / CINEMATIC OVERLAY */}
+      {/* This layer handles the dark buildup and the bright whiteout */}
       <div 
         ref={shockwaveRef} 
-        className="fixed inset-0 z-[100] pointer-events-none opacity-0 mix-blend-screen"
-      />
+        className="fixed inset-0 z-[100] pointer-events-none opacity-0 flex items-center justify-center"
+      >
+            {/* Removed isIgniting conditional check to ensure GSAP can find the target element at all times */}
+            <div className="cinematic-text text-white font-black font-cyber text-4xl md:text-7xl tracking-tighter text-center px-4 animate-pulse opacity-0 drop-shadow-[0_0_20px_rgba(255,0,0,0.8)]">
+                <AlertTriangle size={48} className="mx-auto mb-4 text-red-500" />
+                {cinematicText}
+            </div>
+      </div>
 
       {/* --- CONTENT SECTION --- */}
       <div ref={containerRef} className="relative z-20 w-full flex flex-col items-center justify-center px-6 md:px-12 py-12 lg:py-8 bg-[#05050a]">
@@ -564,36 +543,32 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
             
             {/* Status */}
             <div className="flex items-center gap-3 mb-2 anim-entry relative z-30">
-               <span className="font-mono text-[10px] md:text-xs text-neon-cyan tracking-[0.2em] uppercase bg-purple-900/10 px-3 py-1 rounded border border-purple-500/20 shadow-[0_0_10px_rgba(124,58,237,0.1)]">
-                   System Status: {appState.isTorchLit ? "ONLINE" : "INITIALIZING..."}
+               <span className={`font-mono text-[10px] md:text-xs tracking-[0.2em] uppercase px-3 py-1 rounded border shadow-[0_0_10px_rgba(124,58,237,0.1)] transition-colors duration-500 ${isIgniting ? 'text-red-500 border-red-500/50 bg-red-900/10' : 'text-neon-cyan border-purple-500/20 bg-purple-900/10'}`}>
+                   System Status: {isIgniting ? "CRITICAL OVERLOAD" : (appState.isTorchLit ? "ONLINE" : "INITIALIZING...")}
                </span>
             </div>
 
             {/* --- REPLACED HTML TITLE WITH LEGENDARY 3D TITLE --- */}
-            {/* Increased container height to fit massive text comfortably on all screens */}
             <div className="relative w-full h-[250px] md:h-[450px] lg:h-[550px] flex items-center justify-center z-30 -mt-8 md:-mt-12 pointer-events-auto">
-                 {/* This component renders the 3D Text Plane */}
                  <LegendaryTitle />
-                 
-                 {/* Optional: Glow behind title */}
-                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[50%] bg-purple-900/30 blur-[100px] -z-10 rounded-full animate-pulse"></div>
+                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[50%] bg-purple-500/30 blur-[100px] -z-10 rounded-full animate-pulse"></div>
             </div>
 
             {/* --- TORCH & LEGENDARY COUNTDOWN AREA --- */}
-            
             <div className="w-full flex justify-center items-center relative h-[450px] md:h-[650px] -mt-20 md:-mt-32 mb-8 anim-entry">
                 
                 {/* Torch Left (Heads Top-Left \) */}
-                <div className="absolute w-[350px] h-[600px] md:w-[600px] md:h-[850px] left-1/2 -translate-x-[60%] md:-translate-x-[55%] -top-10 md:-top-20 z-0 pointer-events-auto transition-opacity duration-1000" style={{ opacity: appState.isTorchLit ? 1 : 0.4 }}>
+                <div className="absolute w-[350px] h-[600px] md:w-[600px] md:h-[850px] left-1/2 -translate-x-[60%] md:-translate-x-[55%] -top-24 md:-top-32 z-0 pointer-events-auto transition-opacity duration-1000">
                     <VoxelTorch isLit={appState.isTorchLit} isMobile={!isDesktop} tilt={0.75} />
                 </div>
                 {/* Torch Right (Heads Top-Right /) */}
-                <div className="absolute w-[350px] h-[600px] md:w-[600px] md:h-[850px] left-1/2 -translate-x-[40%] md:-translate-x-[45%] -top-10 md:-top-20 z-0 pointer-events-auto transition-opacity duration-1000" style={{ opacity: appState.isTorchLit ? 1 : 0.4 }}>
+                <div className="absolute w-[350px] h-[600px] md:w-[600px] md:h-[850px] left-1/2 -translate-x-[40%] md:-translate-x-[45%] -top-24 md:-top-32 z-0 pointer-events-auto transition-opacity duration-1000">
                     <VoxelTorch isLit={appState.isTorchLit} isMobile={!isDesktop} tilt={-0.75} />
                 </div>
                 
                 {/* LEGENDARY COUNTDOWN OVERLAY (Centered) */}
-                {!appState.isTorchLit && (
+                {/* Only show if not lit and NOT igniting (ignition handles its own UI) */}
+                {!appState.isTorchLit && !isIgniting && (
                     <div className="absolute inset-0 flex items-center justify-center z-40 mt-16 md:mt-24 pointer-events-none">
                         {renderLegendaryCountdown()}
                     </div>
@@ -613,7 +588,7 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
       </div>
 
       {/* --- LOCK SCREEN OVERLAY (Backdrop only) --- */}
-      {!appState.isTorchLit && showLockScreen && (
+      {!appState.isTorchLit && showLockScreen && !isIgniting && (
          <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-xl flex items-center justify-center">
              <button onClick={() => setShowLockScreen(false)} className="absolute top-8 right-8 text-white"><X /></button>
              {renderLegendaryCountdown()}

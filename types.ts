@@ -1,3 +1,4 @@
+
 export interface Team {
   id: string;
   name: string;
@@ -42,5 +43,5 @@ export interface AppState {
   countdownEnd: string; // ISO String
   isTorchLit: boolean;
   selectedTeamId: string | null;
-  currentView: 'games' | 'leaderboard' | 'scanner';
+  currentView: 'games' | 'leaderboard' | 'scanner' | 'tournaments';
 }

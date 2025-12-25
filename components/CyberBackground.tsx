@@ -36,7 +36,8 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
     rendererRef.current = renderer;
 
     // --- STARFIELD ---
-    const starCount = 6000;
+    // PERFORMANCE OPTIMIZATION: Reduced from 6000 to 2500
+    const starCount = 2500;
     const starGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(starCount * 3);
     const colors = new Float32Array(starCount * 3);

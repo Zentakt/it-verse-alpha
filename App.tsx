@@ -8,6 +8,7 @@ import DashboardLayout from './components/DashboardLayout';
 import GamesGrid from './components/GamesGrid';
 import Scoreboard from './components/Scoreboard';
 import QRScanner from './components/QRScanner';
+import TournamentsView from './components/TournamentsView';
 import EventModal from './components/EventModal';
 import AdminPanel from './components/AdminPanel';
 import CyberBackground from './components/CyberBackground';
@@ -187,6 +188,10 @@ const App: React.FC = () => {
                         
                         {appState.currentView === 'scanner' && (
                             <QRScanner currentTeam={TEAMS[appState.selectedTeamId]} />
+                        )}
+
+                        {appState.currentView === 'tournaments' && (
+                            <TournamentsView />
                         )}
                     </div>
 

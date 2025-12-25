@@ -29,28 +29,57 @@ const DISK_FRAGMENT = `
   uniform vec3 uColorEdge;
   
   varying vec2 vUv;
+  
+  #define PI 3.14159265359
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-  float noise(vec2 p) {
+  
+  // SEAMLESS NOISE FIX:
+  // Standard value noise does not wrap. We implement Periodic Noise by wrapping
+  // the grid indices (i.y) using mod(). This ensures the texture at 360 degrees
+  // matches the texture at 0 degrees.
+  float periodicNoise(vec2 p, float period) {
     vec2 i = floor(p);
     vec2 f = fract(p);
     f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), f.x),
-               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+    
+    // Wrap the Y coordinate (angle) by the period
+    float y0 = mod(i.y, period);
+    float y1 = mod(i.y + 1.0, period);
+    
+    // X coordinate (distance) does not need wrapping
+    float x0 = i.x;
+    float x1 = i.x + 1.0;
+    
+    return mix(
+        mix(hash(vec2(x0, y0)), hash(vec2(x1, y0)), f.x),
+        mix(hash(vec2(x0, y1)), hash(vec2(x1, y1)), f.x),
+        f.y
+    );
   }
 
   void main() {
     vec2 uv = vUv - 0.5;
     float dist = length(uv) * 2.0; 
-    float angle = atan(uv.y, uv.x);
+    float angle = atan(uv.y, uv.x); // -PI to PI
     
     // Suction distortion
     float warp = 1.0 - pow(dist, 0.5 + uProgress);
-    float swirlAngle = angle + warp * (10.0 + uProgress * 20.0) + uTime * (1.0 + uProgress * 5.0);
+    
+    // Rotation speed increases near center (conservation of angular momentum)
+    float rotationOffset = warp * (10.0 + uProgress * 20.0) + uTime * (1.0 + uProgress * 5.0);
+    
+    // Calculate normalized angular coordinate (0.0 to 1.0 range roughly, plus rotations)
+    // We divide by 2*PI so that 1.0 unit equals one full circle.
+    float thetaInput = (angle + rotationOffset) / (2.0 * PI);
     
     // Accretion Disk Texture
-    float n = noise(vec2(dist * 8.0 - uTime * 4.0, swirlAngle * 2.0));
-    n += noise(vec2(dist * 16.0 + uTime * 2.0, swirlAngle * 4.0)) * 0.5;
+    // We use a frequency of 12.0 for the base layer.
+    // By passing 12.0 as the period, periodicNoise ensures continuity.
+    float n = periodicNoise(vec2(dist * 8.0 - uTime * 4.0, thetaInput * 12.0), 12.0);
+    
+    // Second layer (Frequency 24.0)
+    n += periodicNoise(vec2(dist * 16.0 + uTime * 2.0, thetaInput * 24.0), 24.0) * 0.5;
     
     // Singularity Hole
     float hole = smoothstep(0.1 + uOpen * 1.5, 0.25 + uOpen * 1.5, dist);
@@ -472,12 +501,9 @@ const PortalTransition: React.FC<PortalProps> = ({ onComplete }) => {
         >
             {/* TOP HEADER */}
             <div className={`absolute top-[15%] w-full flex flex-col items-center transition-all duration-300 ${uiState === 'unlocking' ? 'opacity-0 scale-150 blur-xl' : 'opacity-100'}`}>
-                <div className="flex items-center gap-3 px-4 py-1.5 bg-black/40 backdrop-blur border border-cyan-500/30 rounded-full mb-6 shadow-[0_0_20px_rgba(0,255,255,0.15)]">
-                    <Orbit size={14} className="text-cyan-400 animate-[spin_4s_linear_infinite]" />
-                    <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-cyan-200">EVENT_HORIZON // SECURE</span>
-                </div>
-                <h1 className="text-5xl md:text-7xl font-black font-cyber text-center leading-none tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-100 to-cyan-900 drop-shadow-[0_0_30px_rgba(0,255,255,0.3)]">
-                    QUANTUM<br/>LOCK
+                <h1 className="text-4xl md:text-6xl font-black font-cyber text-center leading-none tracking-[0.15em] flex flex-row items-center gap-4 md:gap-6">
+                    <span className="text-white drop-shadow-[0_0_20px_rgba(0,255,255,0.5)]">ENTER</span>
+                    <span className="glitch-effect text-white drop-shadow-[0_0_15px_rgba(0,255,255,0.8)]" data-text="UNIVERSE">UNIVERSE</span>
                 </h1>
             </div>
 
