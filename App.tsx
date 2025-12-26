@@ -191,7 +191,10 @@ const App: React.FC = () => {
                         )}
 
                         {appState.currentView === 'tournaments' && (
-                            <TournamentsView />
+                            <TournamentsView 
+                                onNavigate={handleNavigate} 
+                                currentTeam={TEAMS[appState.selectedTeamId]}
+                            />
                         )}
                     </div>
 
