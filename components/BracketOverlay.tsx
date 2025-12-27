@@ -1,296 +1,348 @@
 
-import React, { useState } from 'react';
-import { X, Copy, Mail, Send, Trophy, MessageSquare, Users, Share2, ExternalLink, Hash, ChevronRight, ArrowRight, Circle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Trophy, ExternalLink, Share2 } from 'lucide-react';
 import { Team } from '../types';
+import { TEAMS } from '../constants';
 
 interface BracketOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     gameName: string;
-    currentTeam: Team;
+    currentTeam: Team; // Current user context, though we use global TEAMS for colors
 }
 
-// --- MOCK DATA ---
-const PARTICIPANTS = [
-    { rank: 1, name: 'MontanaBlack88', status: 'active', avatar: 'https://picsum.photos/50/50?r=1' },
-    { rank: 2, name: 'SypherPK', status: 'eliminated', avatar: 'https://picsum.photos/50/50?r=2' },
-    { rank: 3, name: 'unicornioperro', status: 'eliminated', avatar: 'https://picsum.photos/50/50?r=3' },
-    { rank: 4, name: 'benjyfishy', status: 'active', avatar: 'https://picsum.photos/50/50?r=4' },
-    { rank: 5, name: 'DvLZStaTioN', status: 'active', avatar: 'https://picsum.photos/50/50?r=5' },
-    { rank: 6, name: 'Payamz', status: 'eliminated', avatar: 'https://picsum.photos/50/50?r=6' },
-    { rank: 7, name: 'ChicaLive', status: 'eliminated', avatar: 'https://picsum.photos/50/50?r=7' },
-    { rank: 8, name: 'StarbeastGG', status: 'eliminated', avatar: 'https://picsum.photos/50/50?r=8' },
+// --- DATA STRUCTURES ---
+
+interface BracketMatch {
+    id: string;
+    round: number; // 0 = Ro8, 1 = Semis, 2 = Finals
+    p1: { id: string; score: number | null; isWinner?: boolean };
+    p2: { id: string; score: number | null; isWinner?: boolean };
+    nextMatchId?: string; // The ID of the match this feeds into
+    status: 'scheduled' | 'live' | 'finished';
+}
+
+// Using Faction IDs from constants.ts
+const BRACKET_DATA: BracketMatch[] = [
+    // ROUND 1 (Quarter Finals)
+    { id: 'r1_m1', round: 0, nextMatchId: 'r2_m1', status: 'finished', p1: { id: 't1', score: 2, isWinner: true }, p2: { id: 't8', score: 1 } },
+    { id: 'r1_m2', round: 0, nextMatchId: 'r2_m1', status: 'finished', p1: { id: 't3', score: 0 }, p2: { id: 't6', score: 2, isWinner: true } },
+    { id: 'r1_m3', round: 0, nextMatchId: 'r2_m2', status: 'finished', p1: { id: 't5', score: 1 }, p2: { id: 't2', score: 2, isWinner: true } },
+    { id: 'r1_m4', round: 0, nextMatchId: 'r2_m2', status: 'finished', p1: { id: 't7', score: 2, isWinner: true }, p2: { id: 't4', score: 0 } },
+    
+    // ROUND 2 (Semi Finals)
+    { id: 'r2_m1', round: 1, nextMatchId: 'r3_m1', status: 'finished', p1: { id: 't1', score: 3, isWinner: true }, p2: { id: 't6', score: 1 } },
+    { id: 'r2_m2', round: 1, nextMatchId: 'r3_m1', status: 'live', p1: { id: 't2', score: 1 }, p2: { id: 't7', score: 1 } },
+
+    // ROUND 3 (Finals)
+    { id: 'r3_m1', round: 2, status: 'scheduled', p1: { id: 't1', score: null }, p2: { id: 'tbd', score: null } },
 ];
 
-const BRACKET_ROUNDS = [
-    {
-        name: "Round One",
-        matches: [
-            { id: 1, p1: "MontanaBlack88", p2: "SypherPK", s1: 6, s2: 3, winner: "p1" },
-            { id: 2, p1: "unicornioperro", p2: "benjyfishy", s1: 4, s2: 5, winner: "p2" },
-            { id: 3, p1: "DvLZStaTioN", p2: "Payamz", s1: 4, s2: 3, winner: "p1" },
-            { id: 4, p1: "ChicaLive", p2: "StarbeastGG", s1: 6, s2: 3, winner: "p1" },
-        ]
-    },
-    {
-        name: "Round Two",
-        matches: [
-            { id: 5, p1: "MontanaBlack88", p2: "benjyfishy", s1: 6, s2: 2, winner: "p1" },
-            { id: 6, p1: "DvLZStaTioN", p2: "ChicaLive", s1: 4, s2: 5, winner: "p2" },
-        ]
-    },
-    {
-        name: "Final Round",
-        matches: [
-            { id: 7, p1: "MontanaBlack88", p2: "ChicaLive", s1: 6, s2: 3, winner: "p1" },
-        ]
-    }
-];
+const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameName }) => {
+    const [hoveredTeamId, setHoveredTeamId] = useState<string | null>(null);
+    
+    // Canvas Refs
+    const containerRef = useRef<HTMLDivElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
 
-const CHAT_MESSAGES = [
-    { user: 'Ryan', msg: "I'll kick your Ass! lol", color: '#60a5fa' },
-    { user: 'Jane', msg: "Lorem ipsum", color: '#f472b6' },
-    { user: 'Ronny', msg: "Lorem ipsum", color: '#4ade80' },
-];
+    // --- CANVAS DRAWING LOGIC ---
+    const drawConnections = useCallback(() => {
+        const canvas = canvasRef.current;
+        const container = containerRef.current;
+        const content = contentRef.current;
+        if (!canvas || !container || !content) return;
 
-const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameName, currentTeam }) => {
-    // Mobile View State: 'bracket', 'participants', 'info'
-    const [mobileView, setMobileView] = useState<'bracket' | 'participants' | 'info'>('bracket');
+        // Resize canvas to match the scrollable content size
+        const width = Math.max(container.clientWidth, content.scrollWidth + 100); 
+        const height = Math.max(container.clientHeight, content.scrollHeight + 100);
+        
+        // Handle high DPI displays
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const isMobile = window.innerWidth < 768;
+
+        // CONFIG
+        const LINE_WIDTH = isMobile ? 2 : 3;
+        const COLOR_DEFAULT = '#334155'; // Slate 700
+        
+        // Draw Lines
+        BRACKET_DATA.forEach(match => {
+            if (!match.nextMatchId) return;
+
+            const startEl = document.getElementById(`match-${match.id}`);
+            const endEl = document.getElementById(`match-${match.nextMatchId}`);
+
+            if (startEl && endEl) {
+                const startRect = startEl.getBoundingClientRect();
+                const endRect = endEl.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+
+                // Calculate relative positions to the scrolling content
+                const scrollLeft = container.scrollLeft;
+                const scrollTop = container.scrollTop;
+
+                const x1 = (startRect.right - containerRect.left) + scrollLeft;
+                const y1 = (startRect.top - containerRect.top) + scrollTop + (startRect.height / 2);
+                
+                const x2 = (endRect.left - containerRect.left) + scrollLeft;
+                const y2 = (endRect.top - containerRect.top) + scrollTop + (endRect.height / 2);
+
+                // Bezier Control Points
+                const cp1x = x1 + (x2 - x1) * 0.5;
+                const cp1y = y1;
+                const cp2x = x1 + (x2 - x1) * 0.5;
+                const cp2y = y2;
+
+                // Determine if this path is active (hovered)
+                const isPathActive = 
+                    hoveredTeamId && (
+                        match.p1.id === hoveredTeamId || 
+                        match.p2.id === hoveredTeamId
+                    );
+                
+                // Dynamic Color based on hovered team
+                const activeColor = hoveredTeamId && TEAMS[hoveredTeamId] 
+                    ? TEAMS[hoveredTeamId].color 
+                    : '#3b82f6'; // Fallback blue
+
+                // Draw Shadow/Glow first
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x2, y2);
+                
+                ctx.lineWidth = isPathActive ? (isMobile ? 4 : 6) : LINE_WIDTH;
+                ctx.strokeStyle = isPathActive ? `${activeColor}40` : 'transparent'; // Low opacity glow
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                // Draw Main Line
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x2, y2);
+                
+                ctx.lineWidth = LINE_WIDTH;
+                ctx.strokeStyle = isPathActive ? activeColor : COLOR_DEFAULT;
+                ctx.stroke();
+                
+                // Draw Junction Dot at start
+                ctx.beginPath();
+                ctx.arc(x1, y1, isMobile ? 3 : 4, 0, Math.PI * 2);
+                ctx.fillStyle = isPathActive ? activeColor : COLOR_DEFAULT;
+                ctx.fill();
+            }
+        });
+    }, [hoveredTeamId]);
+
+    // Redraw on window resize or scroll
+    useEffect(() => {
+        window.addEventListener('resize', drawConnections);
+        // Initial draw delay to ensure DOM is rendered
+        const t = setTimeout(drawConnections, 100);
+        return () => {
+            window.removeEventListener('resize', drawConnections);
+            clearTimeout(t);
+        };
+    }, [drawConnections]);
 
     if (!isOpen) return null;
 
+    // --- SUB-COMPONENTS ---
+
+    const TeamRow = ({ p, isWinner, isBottom }: { p: { id: string, score: number|null }, isWinner?: boolean, isBottom?: boolean }) => {
+        const team = TEAMS[p.id];
+        // Fallback for TBD or unknown IDs
+        const name = team ? team.name : (p.id === 'tbd' ? 'TBD' : 'Unknown Team');
+        const color = team ? team.color : '#64748b';
+        const logo = team ? team.logo : '🛡️';
+
+        return (
+            <div 
+                className={`
+                    flex items-center justify-between px-3 py-3 md:px-5 md:py-4
+                    ${isBottom ? '' : 'border-b border-white/5'}
+                    relative overflow-hidden
+                    transition-all duration-200
+                    hover:bg-white/5 cursor-pointer group/row
+                `}
+                onMouseEnter={() => setHoveredTeamId(p.id)}
+                onMouseLeave={() => setHoveredTeamId(null)}
+            >
+                {/* Winner / Active Glow Background */}
+                {isWinner && (
+                    <div className="absolute inset-0 opacity-10 transition-opacity duration-300" style={{ backgroundColor: color }}></div>
+                )}
+                
+                {/* Left Accent Bar */}
+                <div 
+                    className={`absolute left-0 top-0 bottom-0 w-1 md:w-1.5 transition-all duration-300 ${isWinner ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-50'}`} 
+                    style={{ backgroundColor: color, boxShadow: `0 0 15px ${color}` }}
+                ></div>
+
+                {/* Content */}
+                <div className="flex items-center gap-2 md:gap-4 overflow-hidden relative z-10">
+                    <div className={`text-lg md:text-2xl w-6 md:w-8 text-center shrink-0 transition-all duration-300 ${isWinner ? 'grayscale-0 scale-110' : 'grayscale group-hover/row:grayscale-0'}`}>
+                        {logo}
+                    </div>
+                    
+                    <div className={`
+                        text-xs md:text-lg font-bold truncate transition-colors duration-300
+                        ${isWinner ? 'text-white' : 'text-gray-500 group-hover/row:text-gray-200'}
+                        ${hoveredTeamId === p.id ? '!text-white' : ''}
+                    `}
+                    style={isWinner || hoveredTeamId === p.id ? { textShadow: `0 0 20px ${color}66` } : {}}
+                    >
+                        {name}
+                    </div>
+                </div>
+
+                {/* Score */}
+                {p.score !== null && (
+                    <div className={`
+                        w-6 h-6 md:w-10 md:h-10 rounded flex items-center justify-center text-xs md:text-lg font-black font-mono relative z-10 transition-all duration-300
+                        ${isWinner ? 'text-white shadow-lg scale-110' : 'bg-[#0a0a10] text-gray-600'}
+                    `}
+                    style={isWinner ? { backgroundColor: color, boxShadow: `0 0 20px ${color}66` } : {}}
+                    >
+                        {p.score}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const MatchNode = ({ match }: { match: BracketMatch }) => {
+        return (
+            <div 
+                id={`match-${match.id}`}
+                className={`
+                    relative w-[260px] md:w-[360px] bg-[#1a1b26] border rounded-lg md:rounded-xl overflow-hidden flex flex-col z-10
+                    ${match.status === 'live' ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)] scale-105' : 'border-white/10'}
+                    transition-all duration-300 hover:border-blue-500/50 hover:shadow-2xl hover:scale-[1.02]
+                `}
+            >
+                {/* Header (Match ID / Status) */}
+                <div className="flex justify-between items-center px-3 py-1.5 md:px-5 md:py-2 bg-[#0f0f16] border-b border-white/5">
+                    <span className="text-[9px] md:text-[10px] font-mono text-gray-500 uppercase tracking-widest">Match {match.id.split('_')[1]}</span>
+                    {match.status === 'live' && (
+                        <span className="flex items-center gap-1.5 md:gap-2 text-[9px] md:text-[10px] font-bold text-red-500 uppercase animate-pulse">
+                            <span className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-red-500 shadow-[0_0_10px_red]"></span> Live Arena
+                        </span>
+                    )}
+                    {match.status === 'finished' && (
+                        <span className="text-[9px] md:text-[10px] font-bold text-gray-600 uppercase">Final Score</span>
+                    )}
+                </div>
+
+                {/* Teams */}
+                <div className="flex flex-col">
+                    <TeamRow p={match.p1} isWinner={match.p1.isWinner} />
+                    <TeamRow p={match.p2} isWinner={match.p2.isWinner} isBottom />
+                </div>
+
+                {/* Edit Action (Hover) */}
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ExternalLink size={12} className="text-gray-500 hover:text-white cursor-pointer"/>
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="fixed inset-0 z-[100] bg-[#05050a] flex flex-col overflow-hidden animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[100] bg-[#020205] flex flex-col overflow-hidden animate-in fade-in duration-300 font-sans">
+            
             {/* --- HEADER --- */}
-            <div className="h-16 md:h-20 border-b border-white/10 bg-[#0b0b14]/90 backdrop-blur flex items-center justify-between px-4 md:px-8 shrink-0 relative z-50">
-                <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 md:w-10 md:h-10 rounded bg-blue-600 flex items-center justify-center text-white font-bold">IT</div>
-                    <div className="h-8 w-[1px] bg-white/20 mx-2 hidden md:block"></div>
+            <div className="h-16 md:h-24 border-b border-white/5 bg-[#05050a] flex items-center justify-between px-4 md:px-10 shrink-0 relative z-50 shadow-2xl">
+                <div className="flex items-center gap-4 md:gap-8">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white font-black italic shadow-[0_0_20px_rgba(37,99,235,0.4)] text-xs md:text-base">TW</div>
+                        <span className="font-bold text-lg md:text-xl tracking-[0.2em] text-white hidden md:inline font-cyber">GALAXIES</span>
+                    </div>
+                    <div className="h-8 md:h-10 w-[1px] bg-white/10 hidden md:block"></div>
                     <div>
-                        <div className="text-[10px] text-blue-400 font-bold tracking-widest uppercase mb-0.5">{gameName}</div>
-                        <h1 className="text-lg md:text-2xl font-black text-white leading-none tracking-wide">Ultimate Challenge</h1>
+                        <div className="text-[9px] md:text-[10px] text-blue-500 font-bold tracking-widest uppercase mb-0.5 md:mb-1">{gameName} Championship</div>
+                        <h1 className="text-lg md:text-3xl font-black text-white leading-none tracking-tight flex items-center gap-3 font-cyber">
+                            ULTIMATE CHALLENGE <span className="px-2 py-0.5 rounded bg-white/10 text-gray-300 text-[10px] md:text-xs font-sans tracking-normal border border-white/5 hidden md:inline">S4 FINALS</span>
+                        </h1>
                     </div>
                 </div>
                 
-                {/* Desktop Actions */}
-                <div className="flex items-center gap-4">
-                    <button className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full border border-blue-500/30 text-blue-400 text-xs font-bold hover:bg-blue-500/10 transition-colors">
-                        Connect Accounts
+                <div className="flex items-center gap-2 md:gap-4">
+                    <button className="hidden md:flex items-center justify-center px-8 py-3 rounded-full bg-white text-black hover:bg-gray-200 text-sm font-bold transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                        <Share2 size={16} className="mr-2"/> Share Bracket
                     </button>
                     <button 
                         onClick={onClose}
-                        className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+                        className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
                     >
-                        <X size={20} />
+                        <X size={20} className="md:w-6 md:h-6" />
                     </button>
                 </div>
             </div>
 
-            {/* --- MAIN CONTENT GRID --- */}
-            <div className="flex-1 overflow-hidden relative">
-                {/* Background Glow */}
-                <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[120px] pointer-events-none"></div>
-                <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-900/20 rounded-full blur-[120px] pointer-events-none"></div>
+            {/* --- MAIN AREA --- */}
+            <div className="flex-1 overflow-hidden relative bg-[radial-gradient(circle_at_center,#11111e_0%,#020205_100%)]">
+                
+                {/* CENTER PANEL: BRACKET CANVAS */}
+                <div className="absolute inset-0 flex flex-col bg-[#0b0b12] overflow-hidden">
+                    {/* Scroll Container */}
+                    <div 
+                        ref={containerRef}
+                        className="flex-1 overflow-auto relative custom-scrollbar flex items-center justify-start md:justify-center"
+                        onScroll={drawConnections}
+                    >
+                        {/* The Drawing Layer (Behind content) */}
+                        <canvas ref={canvasRef} className="absolute top-0 left-0 pointer-events-none z-0" />
 
-                <div className="w-full h-full max-w-[1920px] mx-auto grid grid-cols-1 lg:grid-cols-[300px_1fr_350px] gap-6 p-4 md:p-8 relative z-10">
-                    
-                    {/* --- LEFT SIDEBAR: PARTICIPANTS (Hidden on Mobile unless selected) --- */}
-                    <div className={`
-                        flex-col gap-6 lg:flex
-                        ${mobileView === 'participants' ? 'flex absolute inset-4 z-20 bg-[#05050a] pb-20' : 'hidden'}
-                    `}>
-                        {/* Participants List */}
-                        <div className="flex-1 bg-[#0f1016] border border-white/5 rounded-2xl overflow-hidden flex flex-col shadow-2xl">
-                            <div className="p-5 border-b border-white/5 flex justify-between items-center">
-                                <h3 className="text-sm font-bold text-gray-300">Participants</h3>
-                                <ExternalLink size={14} className="text-gray-500" />
+                        {/* The Bracket Content */}
+                        <div ref={contentRef} className="relative z-10 flex p-8 md:p-24 min-w-max mx-auto items-center">
+                            
+                            {/* Round 1 Column */}
+                            <div className="flex flex-col gap-8 md:gap-12 justify-center">
+                                <div className="text-center text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-[0.3em] mb-4 md:mb-8">Quarter Finals</div>
+                                <div className="flex flex-col gap-8 md:gap-20">
+                                    <MatchNode match={BRACKET_DATA[0]} />
+                                    <MatchNode match={BRACKET_DATA[1]} />
+                                    <MatchNode match={BRACKET_DATA[2]} />
+                                    <MatchNode match={BRACKET_DATA[3]} />
+                                </div>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                                {PARTICIPANTS.map((p) => (
-                                    <div key={p.rank} className={`flex items-center gap-3 p-3 rounded-xl transition-colors ${p.status === 'eliminated' ? 'opacity-50 hover:bg-white/5' : 'bg-blue-900/20 border border-blue-500/30'}`}>
-                                        <span className="text-xs font-mono text-gray-500 w-4">{p.rank}.</span>
-                                        <img src={p.avatar} className="w-6 h-6 rounded-full bg-gray-800" alt="" />
-                                        <span className="text-sm font-bold text-gray-200 truncate flex-1">{p.name}</span>
-                                        {p.status === 'active' && <div className="w-1.5 h-1.5 bg-green-500 rounded-full shadow-[0_0_5px_#22c55e]"></div>}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
 
-                        {/* Share Card */}
-                        <div className="bg-[#0f1016] border border-white/5 rounded-2xl p-5 shadow-2xl">
-                            <h3 className="text-sm font-bold text-gray-300 mb-4">Share</h3>
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <button className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 py-3 rounded-lg text-xs font-bold text-gray-300 transition-colors">
-                                    <Copy size={14} /> Copy Link
-                                </button>
-                                <button className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 py-3 rounded-lg text-xs font-bold text-gray-300 transition-colors">
-                                    <Mail size={14} /> Send Email
-                                </button>
+                            {/* Spacer */}
+                            <div className="w-16 md:w-32 shrink-0"></div>
+
+                            {/* Round 2 Column */}
+                            <div className="flex flex-col gap-8 md:gap-12 justify-center pt-8 md:pt-16">
+                                <div className="text-center text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-[0.3em] mb-4 md:mb-8">Semi Finals</div>
+                                <div className="flex flex-col gap-24 md:gap-40"> 
+                                    <MatchNode match={BRACKET_DATA[4]} />
+                                    <MatchNode match={BRACKET_DATA[5]} />
+                                </div>
                             </div>
-                            <div className="bg-black/40 rounded-lg p-3 flex items-center justify-between border border-white/5">
-                                <span className="text-xs text-blue-400 truncate max-w-[150px]">itverse.com/t/fn-25</span>
-                                <button className="bg-blue-600 p-1.5 rounded text-white hover:bg-blue-500"><Copy size={12}/></button>
+
+                            {/* Spacer */}
+                            <div className="w-16 md:w-32 shrink-0"></div>
+
+                            {/* Round 3 Column */}
+                            <div className="flex flex-col gap-8 md:gap-12 justify-center pt-4 md:pt-8">
+                                <div className="text-center text-[10px] md:text-xs font-bold text-yellow-500 uppercase tracking-[0.3em] mb-4 md:mb-8 flex items-center justify-center gap-2 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"><Trophy size={14} className="md:w-4 md:h-4"/> Grand Final</div>
+                                <div className="flex flex-col justify-center h-full pb-8">
+                                    <MatchNode match={BRACKET_DATA[6]} />
+                                </div>
                             </div>
+
                         </div>
                     </div>
-
-                    {/* --- CENTER: BRACKET (Always visible on Desktop, toggled on Mobile) --- */}
-                    <div className={`
-                        flex-col lg:flex overflow-hidden relative
-                        ${mobileView === 'bracket' ? 'flex absolute inset-0 z-10 pt-20 pb-24 md:pt-0 md:pb-0 md:relative' : 'hidden'}
-                    `}>
-                        {/* Mobile Header for Bracket (Inside view) */}
-                        <div className="lg:hidden absolute top-4 left-4 right-4 flex justify-between items-center text-white/50">
-                            <div className="text-xs font-bold">SWIPE OR SCROLL </div>
-                            <ChevronRight size={16} />
-                        </div>
-
-                        <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar flex items-center px-4 md:px-0">
-                            <div className="flex gap-12 md:gap-24 min-w-max mx-auto py-8 pl-4 md:pl-0">
-                                {BRACKET_ROUNDS.map((round, rIdx) => (
-                                    <div key={rIdx} className="flex flex-col justify-around gap-8 md:gap-12 w-64 md:w-80">
-                                        <div className="text-xs font-bold text-gray-500 uppercase tracking-widest text-center mb-4">{round.name}</div>
-                                        <div className="flex flex-col justify-center gap-8 md:gap-16 flex-1">
-                                            {round.matches.map((match) => (
-                                                <div key={match.id} className="bg-[#0f1016] border border-white/10 rounded-xl overflow-visible shadow-lg relative group">
-                                                    
-                                                    {/* --- CONNECTION ARROW TO NEXT ROUND --- */}
-                                                    {rIdx < BRACKET_ROUNDS.length - 1 && (
-                                                        <div className="absolute top-1/2 -right-[1.5rem] md:-right-[3rem] w-[1.5rem] md:w-[3rem] h-[1px] bg-gradient-to-r from-blue-500/30 to-blue-500 z-0 hidden lg:flex items-center">
-                                                            {/* Arrow Circle Node */}
-                                                            <div className="absolute right-0 translate-x-1/2 w-5 h-5 rounded-full bg-[#05050a] border border-blue-500/50 flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.3)] z-10">
-                                                                <ChevronRight size={10} className="text-blue-400" />
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    
-                                                    {/* Player 1 Row */}
-                                                    <div className={`flex justify-between items-center p-3 md:p-4 border-b border-white/5 relative overflow-hidden ${match.winner === 'p1' ? 'bg-blue-500/10' : ''}`}>
-                                                        <span className={`text-xs md:text-sm font-bold truncate pr-4 ${match.winner === 'p1' ? 'text-white' : 'text-gray-500'}`}>{match.p1}</span>
-                                                        <div className="flex items-center gap-3">
-                                                            {match.winner === 'p1' && <ArrowRight size={14} className="text-blue-500 animate-pulse hidden md:block" />}
-                                                            <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${match.winner === 'p1' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-500'}`}>
-                                                                {match.s1}
-                                                            </div>
-                                                        </div>
-                                                        {match.winner === 'p1' && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}
-                                                    </div>
-
-                                                    {/* Player 2 Row */}
-                                                    <div className={`flex justify-between items-center p-3 md:p-4 relative overflow-hidden ${match.winner === 'p2' ? 'bg-blue-500/10' : ''}`}>
-                                                        <span className={`text-xs md:text-sm font-bold truncate pr-4 ${match.winner === 'p2' ? 'text-white' : 'text-gray-500'}`}>{match.p2}</span>
-                                                        <div className="flex items-center gap-3">
-                                                            {match.winner === 'p2' && <ArrowRight size={14} className="text-blue-500 animate-pulse hidden md:block" />}
-                                                            <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${match.winner === 'p2' ? 'bg-blue-600 text-white' : 'bg-white/5 text-gray-500'}`}>
-                                                                {match.s2}
-                                                            </div>
-                                                        </div>
-                                                        {match.winner === 'p2' && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>}
-                                                    </div>
-                                                    
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* --- RIGHT SIDEBAR: CHAT & INFO (Hidden on Mobile unless selected) --- */}
-                    <div className={`
-                        flex-col gap-6 lg:flex
-                        ${mobileView === 'info' ? 'flex absolute inset-4 z-20 bg-[#05050a] pb-20' : 'hidden'}
-                    `}>
-                        {/* Discussion */}
-                        <div className="flex-1 bg-[#0f1016] border border-white/5 rounded-2xl overflow-hidden flex flex-col shadow-2xl">
-                            <div className="p-5 border-b border-white/5 flex justify-between items-center">
-                                <h3 className="text-sm font-bold text-gray-300">Discussion</h3>
-                                <div className="flex gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                                </div>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                                {CHAT_MESSAGES.map((msg, i) => (
-                                    <div key={i} className="text-sm">
-                                        <span className="font-bold mr-2" style={{ color: msg.color }}>{msg.user}:</span>
-                                        <span className="text-gray-400">{msg.msg}</span>
-                                    </div>
-                                ))}
-                                <div className="text-center py-4">
-                                    <span className="text-[10px] text-gray-600 uppercase tracking-widest">Today 10:23 PM</span>
-                                </div>
-                            </div>
-                            <div className="p-4 border-t border-white/5">
-                                <div className="relative">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Send a message..." 
-                                        className="w-full bg-black/50 border border-white/10 rounded-lg py-3 px-4 text-sm text-white focus:border-blue-500 outline-none pr-10"
-                                    />
-                                    <button className="absolute right-2 top-1/2 -translate-y-1/2 text-blue-500 p-1.5 hover:bg-blue-500/10 rounded">
-                                        <Send size={16} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Leaderboard Summary */}
-                        <div className="bg-gradient-to-br from-blue-900/40 to-purple-900/40 border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-50"><Trophy size={48} className="text-white/10" /></div>
-                            <div className="relative z-10">
-                                <div className="text-[10px] font-bold text-blue-300 uppercase tracking-widest mb-1">Fortnite Leaderboard</div>
-                                <h3 className="text-xl font-bold text-white mb-6">Ultimate Challenge</h3>
-                                
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <div className="text-[10px] text-gray-400 uppercase">Top Player</div>
-                                            <div className="text-sm font-bold text-white">1. MontanaBlack88</div>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[10px] text-gray-400 uppercase">Score</div>
-                                            <div className="text-sm font-bold text-green-400">9820</div>
-                                        </div>
-                                    </div>
-                                    <div className="h-[1px] bg-white/10 w-full"></div>
-                                    <div className="flex items-center justify-between opacity-75">
-                                        <div className="text-xs font-bold text-gray-300">2. ChicaLive</div>
-                                        <div className="text-xs font-bold text-gray-500">8450</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                 </div>
-            </div>
-
-            {/* --- MOBILE NAVIGATION BAR (Bottom Sticky) --- */}
-            <div className="lg:hidden h-16 bg-[#0b0b14] border-t border-white/10 flex items-center justify-around px-4 relative z-50 shrink-0">
-                <button 
-                    onClick={() => setMobileView('participants')}
-                    className={`flex flex-col items-center gap-1 ${mobileView === 'participants' ? 'text-blue-400' : 'text-gray-500'}`}
-                >
-                    <Users size={20} />
-                    <span className="text-[10px] font-bold uppercase">People</span>
-                </button>
-                <button 
-                    onClick={() => setMobileView('bracket')}
-                    className={`flex flex-col items-center gap-1 ${mobileView === 'bracket' ? 'text-blue-400' : 'text-gray-500'}`}
-                >
-                    <Hash size={20} />
-                    <span className="text-[10px] font-bold uppercase">Bracket</span>
-                </button>
-                <button 
-                    onClick={() => setMobileView('info')}
-                    className={`flex flex-col items-center gap-1 ${mobileView === 'info' ? 'text-blue-400' : 'text-gray-500'}`}
-                >
-                    <MessageSquare size={20} />
-                    <span className="text-[10px] font-bold uppercase">Chat</span>
-                </button>
             </div>
         </div>
     );
