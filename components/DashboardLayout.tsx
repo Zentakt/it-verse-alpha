@@ -398,7 +398,7 @@ const TeamAtmosphere: React.FC<{ team: Team }> = ({ team }) => {
 // --- LEGENDARY MOBILE MENU ---
 interface MobileMenuProps {
     onClose: () => void;
-    navItems: { id: AppState['currentView']; label: string; icon: any }[];
+    navItems: readonly { id: AppState['currentView']; label: string; icon: any }[];
     currentView: AppState['currentView'];
     onNavigate: (view: AppState['currentView']) => void;
     userProfile: UserProfile;
@@ -591,7 +591,7 @@ const MobileMenu: React.FC<MobileMenuProps> = ({ onClose, navItems, currentView,
                         return (
                             <button
                                 key={item.id}
-                                ref={el => itemsRef.current[idx] = el}
+                                ref={el => { itemsRef.current[idx] = el; }}
                                 onClick={() => handleItemClick(idx, item.id)}
                                 className={`
                                     menu-item group relative w-full text-left p-6 overflow-hidden rounded-md transition-all duration-300

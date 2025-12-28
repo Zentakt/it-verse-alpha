@@ -365,7 +365,7 @@ const PortalTransition: React.FC<PortalProps> = ({ onComplete }) => {
             camera.position.x = (Math.random() - 0.5) * shake;
             camera.position.y = (Math.random() - 0.5) * shake;
 
-            if (progressRef.current >= 1 && uiState !== 'unlocking') unlock();
+            if (progressRef.current >= 1) unlock();
         } else if (uiState === 'locked') {
             // DECAY
             progressRef.current = Math.max(0, progressRef.current - delta * 2.0);
