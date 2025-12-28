@@ -22,14 +22,36 @@ export interface Match {
   winnerId?: string;
 }
 
+export interface BracketMatch {
+    id: string;
+    round: number; 
+    p1: { id: string; score: number | null; isWinner?: boolean };
+    p2: { id: string; score: number | null; isWinner?: boolean };
+    nextMatchId?: string;
+    status: 'scheduled' | 'live' | 'finished';
+}
+
+export interface TournamentDetails {
+    status: 'Open' | 'Pending' | 'Closed';
+    prizePool: string;
+    entryFee: string;
+    format: string;
+    brief: string;
+    rules: string[];
+    schedule: { day: string; hour: string; min: string; sec: string };
+}
+
 export interface GameEvent {
   id: string;
   title: string;
-  image: string; // Thumbnail
+  image: string; // Thumbnail/Banner
   game: string; // e.g., "Valorant"
+  shortName: string; // e.g. "VAL"
   description: string;
-  matches: Match[];
+  matches: Match[]; // For the "Live Games" list
+  bracket: BracketMatch[]; // For the Visual Bracket
   bracketType: 'single' | 'double' | 'round-robin';
+  details: TournamentDetails;
 }
 
 export interface UserProfile {
@@ -43,5 +65,5 @@ export interface AppState {
   countdownEnd: string; // ISO String
   isTorchLit: boolean;
   selectedTeamId: string | null;
-  currentView: 'games' | 'leaderboard' | 'scanner' | 'tournaments';
+  currentView: 'games' | 'leaderboard' | 'scanner' | 'tournaments' | 'login';
 }

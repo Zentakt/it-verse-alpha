@@ -12,58 +12,92 @@ interface TeamSelectorProps {
 
 // --- ASSET GENERATION ---
 
-const createLogoTexture = (text: string, color: string) => {
+const createLogoTexture = (logoContent: string, color: string) => {
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
   canvas.height = 1024;
   const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.clearRect(0, 0, 1024, 1024);
-    
-    // Tech Circle Background
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 20;
-    ctx.beginPath();
-    ctx.arc(512, 512, 380, 0, Math.PI * 2);
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 30;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    
-    // Dashed Ring
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(512, 512, 440, 0, Math.PI * 2);
-    ctx.setLineDash([40, 60]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Inner Glow
-    const gradient = ctx.createRadialGradient(512, 512, 100, 512, 512, 500);
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(0.5, 'transparent');
-    ctx.fillStyle = gradient;
-    ctx.globalAlpha = 0.4;
-    ctx.fill();
-    ctx.globalAlpha = 1.0;
-
-    // Emoji Logo
-    ctx.font = '450px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 20;
-    ctx.fillText(text, 512, 550);
-    
-    // Scanlines
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    for(let i=0; i<1024; i+=8) {
-        ctx.fillRect(0, i, 1024, 3);
-    }
-  }
   const tex = new THREE.CanvasTexture(canvas);
   tex.anisotropy = 16;
+
+  if (ctx) {
+    const drawBase = () => {
+        ctx.clearRect(0, 0, 1024, 1024);
+        
+        // Tech Circle Background
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 20;
+        ctx.beginPath();
+        ctx.arc(512, 512, 380, 0, Math.PI * 2);
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 30;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        
+        // Dashed Ring
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(512, 512, 440, 0, Math.PI * 2);
+        ctx.setLineDash([40, 60]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Inner Glow
+        const gradient = ctx.createRadialGradient(512, 512, 100, 512, 512, 500);
+        gradient.addColorStop(0, color);
+        gradient.addColorStop(0.5, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.globalAlpha = 0.4;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        
+        // Scanlines
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        for(let i=0; i<1024; i+=8) {
+            ctx.fillRect(0, i, 1024, 3);
+        }
+    };
+
+    drawBase();
+
+    // Check if image or text
+    if (logoContent.startsWith('http') || logoContent.startsWith('data:')) {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.src = logoContent;
+        img.onload = () => {
+            // Re-draw base to clear
+            drawBase();
+            // Draw Image Centered
+            // Calculate aspect ratio fit
+            const aspect = img.width / img.height;
+            let drawW = 500; 
+            let drawH = 500;
+            if (aspect > 1) drawH = drawW / aspect;
+            else drawW = drawH * aspect;
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(512, 512, 360, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(img, 512 - drawW/2, 512 - drawH/2, drawW, drawH);
+            ctx.restore();
+            tex.needsUpdate = true;
+        };
+    } else {
+        // Emoji Logo
+        ctx.font = '450px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(logoContent, 512, 550);
+        tex.needsUpdate = true;
+    }
+  }
+  
   return tex;
 };
 

@@ -183,8 +183,12 @@ const HeroCard: React.FC<{ team: Team, points: number, onToggle: () => void, isE
                     <div className="flex flex-col md:flex-row items-center gap-10 flex-1 text-center md:text-left">
                         <div className="relative shrink-0">
                              {/* Pulsating Logo Container */}
-                             <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-black border-4 border-[var(--team-color)] flex items-center justify-center text-7xl md:text-8xl shadow-[0_0_50px_var(--team-color)] relative z-10 animate-[pulse-glow_3s_infinite]" style={{ boxShadow: `0 0 30px ${team.color}, inset 0 0 20px ${team.color}` }}>
-                                 {team.logo}
+                             <div className="w-32 h-32 md:w-44 md:h-44 rounded-full bg-black border-4 border-[var(--team-color)] flex items-center justify-center text-7xl md:text-8xl shadow-[0_0_50px_var(--team-color)] relative z-10 animate-[pulse-glow_3s_infinite] overflow-hidden" style={{ boxShadow: `0 0 30px ${team.color}, inset 0 0 20px ${team.color}` }}>
+                                 {team.logo.startsWith('http') || team.logo.startsWith('data:') ? (
+                                     <img src={team.logo} className="w-full h-full object-cover" alt={team.name} />
+                                 ) : (
+                                     team.logo
+                                 )}
                              </div>
                              
                              {/* Floating Crown - SEPARATED POSITION AND ANIMATION */}
@@ -325,8 +329,12 @@ const LeaderboardRow: React.FC<{ team: Team, rank: number, points: number, isExp
                 </div>
                 
                 {/* WATERMARK LOGO (Right Side Background) */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 text-[8rem] opacity-[0.03] group-hover:opacity-10 transition-opacity duration-500 pointer-events-none grayscale group-hover:grayscale-0" style={{ color: team.color }}>
-                    {team.logo}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 text-[8rem] opacity-[0.03] group-hover:opacity-10 transition-opacity duration-500 pointer-events-none grayscale group-hover:grayscale-0 overflow-hidden" style={{ color: team.color }}>
+                    {team.logo.startsWith('http') || team.logo.startsWith('data:') ? (
+                        <img src={team.logo} className="w-32 h-32 object-cover opacity-50" alt="" />
+                    ) : (
+                        team.logo
+                    )}
                 </div>
             </div>
 

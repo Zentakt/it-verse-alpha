@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState, useMemo, useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
-import { TEAMS } from '../constants';
+import { Team } from '../types';
 import { Shield, Zap, Cpu, Code2, Terminal, Database } from 'lucide-react';
 import FactionEntryTransition from './FactionEntryTransition';
 
@@ -57,7 +57,6 @@ const DEFAULT_LORE = {
     params: { speed: 0.5 }
 };
 
-// --- GLITCH TEXT REVEAL COMPONENT ---
 interface GlitchTextProps {
     text: string;
     teamId: string;
@@ -65,16 +64,14 @@ interface GlitchTextProps {
     className?: string;
     speed?: 'fast' | 'slow';
     delay?: number;
-    mode?: 'char' | 'word'; // Force splitting mode
+    mode?: 'char' | 'word';
 }
 
 const GlitchText: React.FC<GlitchTextProps> = ({ text, teamId, as: Component = 'div', className = '', speed = 'fast', delay = 0, mode }) => {
     const el = useRef<HTMLDivElement>(null);
     const [isVisible, setIsVisible] = useState(false);
     
-    // Determine split mode automatically if not provided
     const splitMode = mode ? mode : (text.length > 30 ? 'word' : 'char');
-    
     const words = useMemo(() => text.split(' '), [text]);
 
     useEffect(() => {
@@ -93,7 +90,6 @@ const GlitchText: React.FC<GlitchTextProps> = ({ text, teamId, as: Component = '
         if (!isVisible || !el.current) return;
         
         const ctx = gsap.context(() => {
-            // Select based on mode
             const selector = splitMode === 'char' ? '.glitch-char' : '.glitch-word';
             const targets = el.current?.querySelectorAll(selector);
             
@@ -102,10 +98,8 @@ const GlitchText: React.FC<GlitchTextProps> = ({ text, teamId, as: Component = '
             const duration = speed === 'fast' ? 0.5 : 1.0;
             const staggerAmount = speed === 'fast' ? 0.3 : 0.8;
 
-            // --- T1: PYTHON (SCRAMBLE / DATA STREAM) ---
             if (teamId === 't1') {
                 if (splitMode === 'char') {
-                    // Matrix Scramble for Title
                     const chars = "01_!@#%&";
                     gsap.fromTo(targets, 
                         { opacity: 0 },
@@ -118,7 +112,6 @@ const GlitchText: React.FC<GlitchTextProps> = ({ text, teamId, as: Component = '
                                 targets.forEach((element) => {
                                     const span = element as HTMLElement;
                                     const original = span.getAttribute('data-char') || span.textContent || '';
-                                    
                                     const obj = { val: 0 };
                                     gsap.to(obj, {
                                         val: 1,
@@ -139,158 +132,47 @@ const GlitchText: React.FC<GlitchTextProps> = ({ text, teamId, as: Component = '
                         }
                     );
                 } else {
-                    // Data Stream for Description
-                    gsap.fromTo(targets,
-                        { opacity: 0, color: '#4ade80' },
-                        { opacity: 1, color: 'inherit', duration: 0.5, stagger: 0.05, delay: delay }
-                    );
+                    gsap.fromTo(targets, { opacity: 0, color: '#4ade80' }, { opacity: 1, color: 'inherit', duration: 0.5, stagger: 0.05, delay: delay });
                 }
-            }
-            
-            // --- T2: AJAX (ASYNC LIGHTNING STRIKE) ---
-            // Lore: "Strike before the server even registers" -> Instant, chaotic, high energy.
-            else if (teamId === 't2') {
+            } else if (teamId === 't2') {
                 const tl = gsap.timeline({ delay: delay });
-
-                // 1. THE STRIKE: Characters arrive "Async" (Random order), instantly, with high energy.
-                // We use scaleY to simulate the "bolt" stretching down, and a white flash for impact.
-                // NO FILTERS used for maximum mobile performance.
-                tl.fromTo(targets,
-                    { 
-                        y: -30,         // Vertical drop (Lightning)
-                        opacity: 0, 
-                        scaleY: 3.5,    // Stretched into a bolt
-                        color: '#ffffff', // Flash White (Cheaper than filter: brightness)
-                        skewX: -20,     // Dynamic motion skew
-                    },
-                    {
-                        y: 0,
-                        opacity: 1,
-                        scaleY: 1,
-                        skewX: 0,
-                        duration: 0.25,   // Impact is immediate
-                        stagger: {
-                            amount: splitMode === 'char' ? 0.3 : 0.5,
-                            from: "random" // Pure Async chaos
-                        },
-                        ease: "power4.out" // Hard stop
-                    }
-                );
-
-                // 2. DISCHARGE: Cool down to team color (inheriting CSS color)
-                tl.to(targets, {
-                    color: 'inherit',
-                    duration: 0.3,
-                    ease: "power2.in",
-                    clearProps: "scaleY,skewX" // Clean transform props for crisp text
-                }, "-=0.1");
-
-                // 3. RESIDUAL JITTER: Tiny static noise after impact
+                tl.fromTo(targets, { y: -30, opacity: 0, scaleY: 3.5, color: '#ffffff', skewX: -20 }, { y: 0, opacity: 1, scaleY: 1, skewX: 0, duration: 0.25, stagger: { amount: splitMode === 'char' ? 0.3 : 0.5, from: "random" }, ease: "power4.out" });
+                tl.to(targets, { color: 'inherit', duration: 0.3, ease: "power2.in", clearProps: "scaleY,skewX" }, "-=0.1");
                 if (splitMode === 'char') {
-                    tl.to(targets, {
-                        x: () => gsap.utils.random(-2, 2),
-                        duration: 0.05,
-                        repeat: 2,
-                        yoyo: true,
-                        ease: "steps(1)", // Digital glitch feel
-                        stagger: {
-                            amount: 0.1,
-                            from: "random",
-                            grid: "auto"
-                        }
-                    }, "-=0.2");
+                    tl.to(targets, { x: () => gsap.utils.random(-2, 2), duration: 0.05, repeat: 2, yoyo: true, ease: "steps(1)", stagger: { amount: 0.1, from: "random", grid: "auto" } }, "-=0.2");
                 }
-
-                // 4. STABILITY LOCK: Force reset everything to ensure text is readable and static
-                // This prevents the "stuck" text issue by guaranteeing a clean slate at the end.
-                tl.add(() => {
-                     gsap.set(targets, { 
-                         clearProps: "all" 
-                     });
-                     gsap.set(targets, { opacity: 1, x: 0, y: 0, scale: 1, filter: 'none', color: 'inherit' });
-                });
-            }
-
-            // --- T3: JAVA (VOXEL CONSTRUCT) ---
-            else if (teamId === 't3') {
+                tl.add(() => { gsap.set(targets, { clearProps: "all" }); gsap.set(targets, { opacity: 1, x: 0, y: 0, scale: 1, filter: 'none', color: 'inherit' }); });
+            } else if (teamId === 't3') {
                 gsap.set(targets, { transformOrigin: 'bottom center' });
-                gsap.fromTo(targets,
-                    { y: 30, opacity: 0, scaleY: 0 },
-                    {
-                        y: 0, opacity: 1, scaleY: 1,
-                        duration: 0.4,
-                        stagger: splitMode === 'char' ? 0.05 : 0.02,
-                        ease: "steps(4)",
-                        delay: delay
-                    }
-                );
+                gsap.fromTo(targets, { y: 30, opacity: 0, scaleY: 0 }, { y: 0, opacity: 1, scaleY: 1, duration: 0.4, stagger: splitMode === 'char' ? 0.05 : 0.02, ease: "steps(4)", delay: delay });
+            } else if (teamId === 't4') {
+                gsap.fromTo(targets, { opacity: 0, filter: 'blur(12px)', scale: 1.5, color: '#ff0055' }, { opacity: 1, filter: 'blur(0px)', scale: 1, color: 'inherit', duration: 0.8, stagger: { amount: staggerAmount }, ease: "expo.out", delay: delay, clearProps: "scale,filter" });
             }
-
-            // --- T4: RUBY (PRISMATIC FOCUS) ---
-            else if (teamId === 't4') {
-                gsap.fromTo(targets,
-                    { 
-                        opacity: 0, 
-                        filter: 'blur(12px)', 
-                        scale: 1.5,
-                        color: '#ff0055' 
-                    },
-                    {
-                        opacity: 1, 
-                        filter: 'blur(0px)', 
-                        scale: 1,
-                        color: 'inherit',
-                        duration: 0.8,
-                        stagger: { amount: staggerAmount },
-                        ease: "expo.out",
-                        delay: delay,
-                        clearProps: "scale,filter" // Ensure crisp text at end
-                    }
-                );
-            }
-
         }, el);
-
         return () => ctx.revert();
     }, [isVisible, teamId, splitMode, speed, delay]);
 
     return (
         <Component ref={el} className={className} aria-label={text}>
             {words.map((word, i) => {
-                // Add space after word if it's not the last one
                 const hasSpace = i < words.length - 1;
-                
                 if (splitMode === 'char') {
-                    // Title Mode: Group chars in a whitespace-nowrap wrapper to prevent mid-word breaks
                     return (
                         <React.Fragment key={i}>
                             <span className="inline-block whitespace-nowrap">
-                                {word.split('').map((char, j) => (
-                                    <span key={j} className="glitch-char inline-block" data-char={char}>
-                                        {char}
-                                    </span>
-                                ))}
+                                {word.split('').map((char, j) => (<span key={j} className="glitch-char inline-block" data-char={char}>{char}</span>))}
                             </span>
                             {hasSpace && ' '}
                         </React.Fragment>
                     );
                 } else {
-                    // Description Mode: Wrap whole words
-                    return (
-                        <React.Fragment key={i}>
-                            <span className="glitch-word inline-block will-change-transform">
-                                {word}
-                            </span>
-                            {hasSpace && ' '}
-                        </React.Fragment>
-                    );
+                    return (<React.Fragment key={i}><span className="glitch-word inline-block will-change-transform">{word}</span>{hasSpace && ' '}</React.Fragment>);
                 }
             })}
         </Component>
     );
 };
 
-// --- GLOBAL BACKGROUND SHADERS ---
 const TERRAIN_VERTEX = `
   varying vec2 vUv;
   varying float vElevation;
@@ -300,25 +182,16 @@ const TERRAIN_VERTEX = `
   uniform float uAmplitude;
   uniform float uScrollWarp;
   uniform vec2 uMouse;
-  
   float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-  float noise(vec2 p) {
-      vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
-      return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), f.x),
-                 mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y);
-  }
-
+  float noise(vec2 p) { vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(hash(i + vec2(0.0,0.0)), hash(i + vec2(1.0,0.0)), f.x), mix(hash(i + vec2(0.0,1.0)), hash(i + vec2(1.0,1.0)), f.x), f.y); }
   void main() {
     vUv = uv;
     vec3 pos = position;
-    
     float n = noise(pos.xy * uFrequency + uTime * uSpeed);
     float dist = distance(uv, uMouse);
     float mouseWave = smoothstep(0.4, 0.0, dist) * sin(dist * 20.0 - uTime * 5.0) * 0.5;
-
     float elevation = n * uAmplitude + mouseWave;
     elevation -= uScrollWarp * (pos.x*pos.x + pos.y*pos.y) * 0.02;
-
     pos.z += elevation;
     vElevation = elevation;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -330,7 +203,6 @@ const TERRAIN_FRAGMENT = `
   varying float vElevation;
   uniform vec3 uColor;
   uniform float uTime;
-
   void main() {
     vec3 col = uColor * (0.1 + smoothstep(-1.0, 2.0, vElevation) * 0.6);
     float grid = step(0.95, fract(vUv.x * 30.0)) + step(0.95, fract(vUv.y * 30.0));
@@ -340,136 +212,11 @@ const TERRAIN_FRAGMENT = `
   }
 `;
 
-// --- STATS SHADERS (LEGENDARY) ---
-
-const STATS_VERTEX = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-// 1. PYTHON: BIO-OOZE
-const PYTHON_BAR_FRAG = `
-  varying vec2 vUv;
-  uniform float uProgress;
-  uniform float uTime;
-  uniform vec3 uColor;
-  
-  float noise(vec2 p) { return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
-
-  void main() {
-    vec2 uv = vUv;
-    float wave = sin(uv.y * 10.0 + uTime * 5.0) * 0.02;
-    float edge = uProgress + wave;
-    float fill = smoothstep(edge + 0.01, edge, uv.x);
-    float bubbles = smoothstep(0.8, 0.9, noise(uv * 20.0 + uTime));
-    vec3 track = uColor * 0.1;
-    vec3 bar = uColor * (0.8 + bubbles * 0.4);
-    bar += vec3(0.5, 1.0, 0.5) * bubbles * 0.5;
-    float glow = (1.0 - smoothstep(0.0, 0.05, abs(uv.x - edge))) * fill * 2.0;
-    vec3 final = mix(track, bar, fill) + glow;
-    gl_FragColor = vec4(final, 0.9);
-  }
-`;
-
-// 2. AJAX: PLASMA ARC (Optimized)
-const AJAX_BAR_FRAG = `
-  varying vec2 vUv;
-  uniform float uProgress;
-  uniform float uTime;
-  uniform vec3 uColor;
-
-  float rand(vec2 n) { return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453); }
-
-  void main() {
-    vec2 uv = vUv;
-    // Jitter edge for electric feel
-    float jitter = rand(vec2(uTime * 20.0, uv.y)) * 0.05; // Faster jitter
-    float edge = uProgress + jitter;
-    
-    float fill = step(uv.x, edge);
-    
-    // Core beam
-    float beam = smoothstep(0.4, 0.5, uv.y) * smoothstep(0.6, 0.5, uv.y);
-    
-    // Moving electric arcs
-    float arcs = step(0.92, fract(uv.x * 15.0 - uTime * 8.0 + sin(uv.y * 30.0)));
-    
-    vec3 track = uColor * 0.1 * (0.5 + 0.5 * step(0.9, fract(uv.x * 20.0))); 
-    vec3 bar = uColor * 0.8; // Brighter base
-    bar += vec3(1.0) * beam * 0.8;
-    bar += vec3(0.8, 1.0, 1.0) * arcs; // Cyan arcs
-    
-    // Impact Flash at the leading edge
-    float flash = smoothstep(0.0, 0.05, 0.05 - abs(uv.x - edge));
-    bar += vec3(1.0) * flash * 2.0;
-
-    vec3 final = mix(track, bar, fill);
-    gl_FragColor = vec4(final, 1.0);
-  }
-`;
-
-// 3. JAVA: VOXEL LOADER
-const JAVA_BAR_FRAG = `
-  varying vec2 vUv;
-  uniform float uProgress;
-  uniform float uTime;
-  uniform vec3 uColor;
-
-  void main() {
-    vec2 uv = vUv;
-    float blocks = 15.0;
-    float bx = floor(uv.x * blocks) / blocks;
-    float fill = step(bx, uProgress - (1.0/blocks));
-    vec2 gv = fract(uv * vec2(blocks, 1.0));
-    float border = step(0.1, gv.x) * step(0.1, gv.y) * step(gv.x, 0.9) * step(gv.y, 0.9);
-    vec3 track = uColor * 0.1 * border;
-    vec3 bar = uColor * border;
-    float pulse = sin(uTime * 3.0) * 0.2 + 0.8;
-    bar *= pulse;
-    vec3 final = mix(track, bar, fill);
-    gl_FragColor = vec4(final, 1.0);
-  }
-`;
-
-// 4. RUBY: HYPER-PRISMATIC CRYSTAL
-const RUBY_BAR_FRAG = `
-  varying vec2 vUv;
-  uniform float uProgress;
-  uniform float uTime;
-  uniform vec3 uColor;
-
-  void main() {
-    vec2 uv = vUv;
-    vec2 p = uv * vec2(15.0, 3.0); 
-    float diag1 = sin(p.x + p.y + uTime * 0.2);
-    float diag2 = sin(p.x - p.y - uTime * 0.1);
-    float facets = smoothstep(0.2, 0.9, abs(diag1 * diag2));
-    float aberration = 0.015;
-    float jagged = sin(uv.y * 20.0) * 0.02;
-    float edgeR = uProgress + jagged + aberration;
-    float edgeG = uProgress + jagged;
-    float edgeB = uProgress + jagged - aberration;
-    float maskR = step(uv.x, edgeR);
-    float maskG = step(uv.x, edgeG);
-    float maskB = step(uv.x, edgeB);
-    float sheen = pow(max(0.0, sin(uv.x * 8.0 - uTime * 2.0 + uv.y * 5.0)), 6.0);
-    float sparkle = pow(max(0.0, sin(uv.x * 30.0 + uTime * 4.0)), 30.0) * facets;
-    vec3 base = uColor;
-    vec3 col;
-    col.r = base.r * (0.4 + 0.6 * facets + 0.5 * sheen) * maskR;
-    col.g = base.g * (0.4 + 0.6 * facets + 0.5 * sheen) * maskG;
-    col.b = base.b * (0.4 + 0.6 * facets + 0.5 * sheen) * maskB;
-    col += vec3(1.0) * sparkle * maskB;
-    float edgeBurn = smoothstep(0.0, 0.03, 0.03 - abs(uv.x - uProgress));
-    col += vec3(1.0, 0.8, 0.8) * edgeBurn * 2.0 * maskR;
-    vec3 track = base * 0.05 + vec3(0.1) * facets * 0.05;
-    vec3 final = mix(track, col, maskR);
-    gl_FragColor = vec4(final, 0.95);
-  }
-`;
+const STATS_VERTEX = `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+const PYTHON_BAR_FRAG = `varying vec2 vUv; uniform float uProgress; uniform float uTime; uniform vec3 uColor; float noise(vec2 p) { return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); } void main() { vec2 uv = vUv; float wave = sin(uv.y * 10.0 + uTime * 5.0) * 0.02; float edge = uProgress + wave; float fill = smoothstep(edge + 0.01, edge, uv.x); float bubbles = smoothstep(0.8, 0.9, noise(uv * 20.0 + uTime)); vec3 track = uColor * 0.1; vec3 bar = uColor * (0.8 + bubbles * 0.4); bar += vec3(0.5, 1.0, 0.5) * bubbles * 0.5; float glow = (1.0 - smoothstep(0.0, 0.05, abs(uv.x - edge))) * fill * 2.0; vec3 final = mix(track, bar, fill) + glow; gl_FragColor = vec4(final, 0.9); }`;
+const AJAX_BAR_FRAG = `varying vec2 vUv; uniform float uProgress; uniform float uTime; uniform vec3 uColor; float rand(vec2 n) { return fract(sin(dot(n, vec2(12.9898, 4.1414))) * 43758.5453); } void main() { vec2 uv = vUv; float jitter = rand(vec2(uTime * 20.0, uv.y)) * 0.05; float edge = uProgress + jitter; float fill = step(uv.x, edge); float beam = smoothstep(0.4, 0.5, uv.y) * smoothstep(0.6, 0.5, uv.y); float arcs = step(0.92, fract(uv.x * 15.0 - uTime * 8.0 + sin(uv.y * 30.0))); vec3 track = uColor * 0.1 * (0.5 + 0.5 * step(0.9, fract(uv.x * 20.0))); vec3 bar = uColor * 0.8; bar += vec3(1.0) * beam * 0.8; bar += vec3(0.8, 1.0, 1.0) * arcs; float flash = smoothstep(0.0, 0.05, 0.05 - abs(uv.x - edge)); bar += vec3(1.0) * flash * 2.0; vec3 final = mix(track, bar, fill); gl_FragColor = vec4(final, 1.0); }`;
+const JAVA_BAR_FRAG = `varying vec2 vUv; uniform float uProgress; uniform float uTime; uniform vec3 uColor; void main() { vec2 uv = vUv; float blocks = 15.0; float bx = floor(uv.x * blocks) / blocks; float fill = step(bx, uProgress - (1.0/blocks)); vec2 gv = fract(uv * vec2(blocks, 1.0)); float border = step(0.1, gv.x) * step(0.1, gv.y) * step(gv.x, 0.9) * step(gv.y, 0.9); vec3 track = uColor * 0.1 * border; vec3 bar = uColor * border; float pulse = sin(uTime * 3.0) * 0.2 + 0.8; bar *= pulse; vec3 final = mix(track, bar, fill); gl_FragColor = vec4(final, 1.0); }`;
+const RUBY_BAR_FRAG = `varying vec2 vUv; uniform float uProgress; uniform float uTime; uniform vec3 uColor; void main() { vec2 uv = vUv; vec2 p = uv * vec2(15.0, 3.0); float diag1 = sin(p.x + p.y + uTime * 0.2); float diag2 = sin(p.x - p.y - uTime * 0.1); float facets = smoothstep(0.2, 0.9, abs(diag1 * diag2)); float aberration = 0.015; float jagged = sin(uv.y * 20.0) * 0.02; float edgeR = uProgress + jagged + aberration; float edgeG = uProgress + jagged; float edgeB = uProgress + jagged - aberration; float maskR = step(uv.x, edgeR); float maskG = step(uv.x, edgeG); float maskB = step(uv.x, edgeB); float sheen = pow(max(0.0, sin(uv.x * 8.0 - uTime * 2.0 + uv.y * 5.0)), 6.0); float sparkle = pow(max(0.0, sin(uv.x * 30.0 + uTime * 4.0)), 30.0) * facets; vec3 base = uColor; vec3 col; col.r = base.r * (0.4 + 0.6 * facets + 0.5 * sheen) * maskR; col.g = base.g * (0.4 + 0.6 * facets + 0.5 * sheen) * maskG; col.b = base.b * (0.4 + 0.6 * facets + 0.5 * sheen) * maskB; col += vec3(1.0) * sparkle * maskB; float edgeBurn = smoothstep(0.0, 0.03, 0.03 - abs(uv.x - uProgress)); col += vec3(1.0, 0.8, 0.8) * edgeBurn * 2.0 * maskR; vec3 track = base * 0.05 + vec3(0.1) * facets * 0.05; vec3 final = mix(track, col, maskR); gl_FragColor = vec4(final, 0.95); }`;
 
 const StatsVisualizer: React.FC<{ teamId: string, stats: any[], color: string }> = ({ teamId, stats, color }) => {
     const mountRef = useRef<HTMLDivElement>(null);
@@ -479,62 +226,40 @@ const StatsVisualizer: React.FC<{ teamId: string, stats: any[], color: string }>
         if (!mountRef.current) return;
         const w = mountRef.current.clientWidth;
         const h = mountRef.current.clientHeight;
-
         const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false, powerPreference: 'low-power' });
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         mountRef.current.appendChild(renderer.domElement);
-
         const scene = new THREE.Scene();
         const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10);
         camera.position.z = 1;
-
         const yPositions = [0.55, -0.15, -0.85];
         const planeGeo = new THREE.PlaneGeometry(1.8, 0.12);
-
         let fragShader = PYTHON_BAR_FRAG;
         if (teamId === 't2') fragShader = AJAX_BAR_FRAG;
         if (teamId === 't3') fragShader = JAVA_BAR_FRAG;
         if (teamId === 't4') fragShader = RUBY_BAR_FRAG;
-
         stats.forEach((_, i) => {
             const mat = new THREE.ShaderMaterial({
-                uniforms: {
-                    uProgress: { value: 0 },
-                    uTime: { value: 0 },
-                    uColor: { value: new THREE.Color(color) }
-                },
-                vertexShader: STATS_VERTEX,
-                fragmentShader: fragShader,
-                transparent: true,
-                blending: THREE.AdditiveBlending
+                uniforms: { uProgress: { value: 0 }, uTime: { value: 0 }, uColor: { value: new THREE.Color(color) } },
+                vertexShader: STATS_VERTEX, fragmentShader: fragShader, transparent: true, blending: THREE.AdditiveBlending
             });
             materialsRef.current.push(mat);
-
             const mesh = new THREE.Mesh(planeGeo, mat);
             mesh.position.y = yPositions[i];
             scene.add(mesh);
         });
-
-        // GSAP Animation via Observer
         const observer = new IntersectionObserver((entries) => {
              entries.forEach(entry => {
                  if (entry.isIntersecting) {
                      materialsRef.current.forEach((mat, i) => {
-                        gsap.to(mat.uniforms.uProgress, {
-                            value: stats[i].val / 100,
-                            duration: 1.5,
-                            ease: "power2.out",
-                            delay: i * 0.2
-                        });
+                        gsap.to(mat.uniforms.uProgress, { value: stats[i].val / 100, duration: 1.5, ease: "power2.out", delay: i * 0.2 });
                      });
                      observer.disconnect();
                  }
              });
         }, { threshold: 0.5 });
         observer.observe(mountRef.current);
-
-        // Render Loop
         const clock = new THREE.Clock();
         let rId = 0;
         const animate = () => {
@@ -544,7 +269,6 @@ const StatsVisualizer: React.FC<{ teamId: string, stats: any[], color: string }>
             renderer.render(scene, camera);
         };
         animate();
-
         return () => {
             observer.disconnect();
             cancelAnimationFrame(rId);
@@ -579,9 +303,10 @@ const StatsVisualizer: React.FC<{ teamId: string, stats: any[], color: string }>
 
 interface TeamLoreProps {
   onSelect: (teamId: string) => void;
+  teams: Record<string, Team>; // Added Prop
 }
 
-const TeamLore: React.FC<TeamLoreProps> = ({ onSelect }) => {
+const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTeamId, setActiveTeamId] = useState<string>('t1');
@@ -608,20 +333,16 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect }) => {
     const width = window.innerWidth;
     const height = window.innerHeight;
     const isMobile = width < 768;
-
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 100);
     if (isMobile) camera.position.set(0, -8, 8); 
     else camera.position.set(0, -6, 5);
     camera.lookAt(0, 0, 0);
-
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
-
     const initLore = LORE_DATA['t1'];
-    
     const material = new THREE.ShaderMaterial({
         vertexShader: TERRAIN_VERTEX,
         fragmentShader: TERRAIN_FRAGMENT,
@@ -632,16 +353,13 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect }) => {
             uAmplitude: { value: initLore.params.amplitude },
             uScrollWarp: { value: 0 },
             uMouse: { value: new THREE.Vector2(0.5, 0.5) },
-            uColor: { value: new THREE.Color(TEAMS['t1'].color) }
+            uColor: { value: new THREE.Color(teams['t1'].color) }
         },
-        transparent: true,
-        side: THREE.DoubleSide
+        transparent: true, side: THREE.DoubleSide
     });
-
     const geometry = new THREE.PlaneGeometry(32, 32, 128, 128); 
     const terrain = new THREE.Mesh(geometry, material);
     scene.add(terrain);
-
     const pGeo = new THREE.BufferGeometry();
     const pCount = isMobile ? 800 : 2000;
     const pPos = new Float32Array(pCount * 3);
@@ -651,102 +369,66 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect }) => {
         pPos[i*3+2] = Math.random() * 8;
     }
     pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    const pMat = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.15,
-        transparent: true,
-        opacity: 0.4,
-    });
+    const pMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.4 });
     const particles = new THREE.Points(pGeo, pMat);
     scene.add(particles);
-
     const clock = new THREE.Clock();
-
     const animate = () => {
         const time = clock.getElapsedTime();
         timeRef.current = time;
         material.uniforms.uTime.value = time;
-
         const sections = document.querySelectorAll('.team-section');
         let closestId = activeTeamRef.current;
         let minDistance = Infinity;
         const centerScreen = window.innerHeight / 2;
-
         sections.forEach((sec) => {
             const rect = sec.getBoundingClientRect();
             const sectionCenter = rect.top + (rect.height / 2);
             const distance = Math.abs(sectionCenter - centerScreen);
-            
             if (distance < minDistance) {
                 minDistance = distance;
                 const tid = sec.getAttribute('data-team-id');
                 if (tid) closestId = tid;
             }
         });
-
         if (closestId !== activeTeamRef.current) {
             activeTeamRef.current = closestId;
             setActiveTeamId(closestId);
         }
-
         const currentLore = LORE_DATA[activeTeamRef.current] || LORE_DATA['t1'];
         const params = currentLore.params;
-        const targetColor = new THREE.Color(TEAMS[activeTeamRef.current]?.color || TEAMS['t1'].color);
+        const targetColor = new THREE.Color(teams[activeTeamRef.current]?.color || teams['t1'].color);
         const lerpSpeed = 0.06;
-        
         material.uniforms.uColor.value.lerp(targetColor, lerpSpeed);
         pMat.color.lerp(targetColor, lerpSpeed);
-
         material.uniforms.uSpeed.value += (params.speed - material.uniforms.uSpeed.value) * lerpSpeed;
         material.uniforms.uFrequency.value += (params.frequency - material.uniforms.uFrequency.value) * lerpSpeed;
         material.uniforms.uAmplitude.value += (params.amplitude - material.uniforms.uAmplitude.value) * lerpSpeed;
-        
         scrollSpeedRef.current *= 0.92;
         material.uniforms.uScrollWarp.value = scrollSpeedRef.current;
         material.uniforms.uMouse.value.lerp(mousePos.current, 0.1);
-
         camera.position.x = Math.sin(time * 0.1) * 0.5;
         camera.position.y = (isMobile ? -8 : -6);
         camera.position.z = (isMobile ? 8 : 5);
         particles.rotation.z = time * 0.05;
-
         renderer.render(scene, camera);
         requestAnimationFrame(animate);
     };
     animate();
-
     const handleResize = () => {
         const w = window.innerWidth;
         const h = window.innerHeight;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
-        if(w < 768) {
-            camera.position.set(0, -8, 8); 
-            terrain.scale.setScalar(0.85); 
-        } else {
-            camera.position.set(0, -6, 5);
-            terrain.scale.setScalar(1);
-        }
+        if(w < 768) { camera.position.set(0, -8, 8); terrain.scale.setScalar(0.85); } else { camera.position.set(0, -6, 5); terrain.scale.setScalar(1); }
     };
-    const handleMouseMove = (e: MouseEvent) => {
-        const x = e.clientX / window.innerWidth;
-        const y = 1.0 - (e.clientY / window.innerHeight);
-        mousePos.current.set(x, y);
-    };
-    const handleScroll = () => {
-        const y = window.scrollY;
-        const delta = y - lastScrollPos.current;
-        scrollSpeedRef.current = delta * 0.005; 
-        scrollSpeedRef.current = Math.max(-1, Math.min(1, scrollSpeedRef.current));
-        lastScrollPos.current = y;
-    };
-
+    const handleMouseMove = (e: MouseEvent) => { const x = e.clientX / window.innerWidth; const y = 1.0 - (e.clientY / window.innerHeight); mousePos.current.set(x, y); };
+    const handleScroll = () => { const y = window.scrollY; const delta = y - lastScrollPos.current; scrollSpeedRef.current = delta * 0.005; scrollSpeedRef.current = Math.max(-1, Math.min(1, scrollSpeedRef.current)); lastScrollPos.current = y; };
     window.addEventListener('resize', handleResize);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('scroll', handleScroll);
     handleResize();
-
     return () => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('mousemove', handleMouseMove);
@@ -754,7 +436,7 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect }) => {
         if (mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
         renderer.dispose();
     };
-  }, []);
+  }, [teams]); // Added dependency on teams to refresh colors if they change
 
   return (
     <div className="relative w-full bg-black min-h-screen">
@@ -764,7 +446,7 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect }) => {
         <div ref={mountRef} className="fixed top-0 left-0 w-full h-full z-0 opacity-60 pointer-events-none"></div>
 
         <div ref={containerRef} className="relative z-10">
-            {Object.values(TEAMS).slice(0, 4).map((team, index) => {
+            {Object.values(teams).slice(0, 4).map((team: Team, index) => {
                 const lore = LORE_DATA[team.id] || DEFAULT_LORE;
                 const isRight = index % 2 !== 0;
 

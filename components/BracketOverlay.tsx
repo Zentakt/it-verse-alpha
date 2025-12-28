@@ -4,47 +4,33 @@ import { X, Trophy, ExternalLink, Share2 } from 'lucide-react';
 import { Team } from '../types';
 import { TEAMS } from '../constants';
 
+interface BracketMatch {
+    id: string;
+    round: number; 
+    p1: { id: string; score: number | null; isWinner?: boolean };
+    p2: { id: string; score: number | null; isWinner?: boolean };
+    nextMatchId?: string;
+    status: 'scheduled' | 'live' | 'finished';
+}
+
 interface BracketOverlayProps {
     isOpen: boolean;
     onClose: () => void;
     gameName: string;
-    currentTeam: Team; // Current user context, though we use global TEAMS for colors
+    currentTeam: Team;
+    bracketData?: BracketMatch[]; // Now accepts data via props
 }
 
-// --- DATA STRUCTURES ---
-
-interface BracketMatch {
-    id: string;
-    round: number; // 0 = Ro8, 1 = Semis, 2 = Finals
-    p1: { id: string; score: number | null; isWinner?: boolean };
-    p2: { id: string; score: number | null; isWinner?: boolean };
-    nextMatchId?: string; // The ID of the match this feeds into
-    status: 'scheduled' | 'live' | 'finished';
-}
-
-// Using Faction IDs from constants.ts
-const BRACKET_DATA: BracketMatch[] = [
-    // ROUND 1 (Quarter Finals)
-    { id: 'r1_m1', round: 0, nextMatchId: 'r2_m1', status: 'finished', p1: { id: 't1', score: 2, isWinner: true }, p2: { id: 't8', score: 1 } },
-    { id: 'r1_m2', round: 0, nextMatchId: 'r2_m1', status: 'finished', p1: { id: 't3', score: 0 }, p2: { id: 't6', score: 2, isWinner: true } },
-    { id: 'r1_m3', round: 0, nextMatchId: 'r2_m2', status: 'finished', p1: { id: 't5', score: 1 }, p2: { id: 't2', score: 2, isWinner: true } },
-    { id: 'r1_m4', round: 0, nextMatchId: 'r2_m2', status: 'finished', p1: { id: 't7', score: 2, isWinner: true }, p2: { id: 't4', score: 0 } },
-    
-    // ROUND 2 (Semi Finals)
-    { id: 'r2_m1', round: 1, nextMatchId: 'r3_m1', status: 'finished', p1: { id: 't1', score: 3, isWinner: true }, p2: { id: 't6', score: 1 } },
-    { id: 'r2_m2', round: 1, nextMatchId: 'r3_m1', status: 'live', p1: { id: 't2', score: 1 }, p2: { id: 't7', score: 1 } },
-
-    // ROUND 3 (Finals)
-    { id: 'r3_m1', round: 2, status: 'scheduled', p1: { id: 't1', score: null }, p2: { id: 'tbd', score: null } },
-];
-
-const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameName }) => {
+const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameName, bracketData }) => {
     const [hoveredTeamId, setHoveredTeamId] = useState<string | null>(null);
     
     // Canvas Refs
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
+
+    // Fallback if no data provided (Safety)
+    const matches = bracketData || [];
 
     // --- CANVAS DRAWING LOGIC ---
     const drawConnections = useCallback(() => {
@@ -76,7 +62,7 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
         const COLOR_DEFAULT = '#334155'; // Slate 700
         
         // Draw Lines
-        BRACKET_DATA.forEach(match => {
+        matches.forEach(match => {
             if (!match.nextMatchId) return;
 
             const startEl = document.getElementById(`match-${match.id}`);
@@ -141,7 +127,7 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
                 ctx.fill();
             }
         });
-    }, [hoveredTeamId]);
+    }, [hoveredTeamId, matches]);
 
     // Redraw on window resize or scroll
     useEffect(() => {
@@ -158,10 +144,10 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
 
     // --- SUB-COMPONENTS ---
 
-    const TeamRow = ({ p, isWinner, isBottom }: { p: { id: string, score: number|null }, isWinner?: boolean, isBottom?: boolean }) => {
+    const TeamRow: React.FC<{ p: { id: string, score: number|null }, isWinner?: boolean, isBottom?: boolean }> = ({ p, isWinner, isBottom }) => {
         const team = TEAMS[p.id];
         // Fallback for TBD or unknown IDs
-        const name = team ? team.name : (p.id === 'tbd' ? 'TBD' : 'Unknown Team');
+        const name = team ? team.name : (p.id === 'tbd' ? 'TBD' : p.id);
         const color = team ? team.color : '#64748b';
         const logo = team ? team.logo : '🛡️';
 
@@ -220,7 +206,7 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
         );
     };
 
-    const MatchNode = ({ match }: { match: BracketMatch }) => {
+    const MatchNode: React.FC<{ match: BracketMatch }> = ({ match }) => {
         return (
             <div 
                 id={`match-${match.id}`}
@@ -310,10 +296,9 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
                             <div className="flex flex-col gap-8 md:gap-12 justify-center">
                                 <div className="text-center text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-[0.3em] mb-4 md:mb-8">Quarter Finals</div>
                                 <div className="flex flex-col gap-8 md:gap-20">
-                                    <MatchNode match={BRACKET_DATA[0]} />
-                                    <MatchNode match={BRACKET_DATA[1]} />
-                                    <MatchNode match={BRACKET_DATA[2]} />
-                                    <MatchNode match={BRACKET_DATA[3]} />
+                                    {matches.filter(m => m.round === 0).map(m => (
+                                        <MatchNode key={m.id} match={m} />
+                                    ))}
                                 </div>
                             </div>
 
@@ -324,8 +309,9 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
                             <div className="flex flex-col gap-8 md:gap-12 justify-center pt-8 md:pt-16">
                                 <div className="text-center text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-[0.3em] mb-4 md:mb-8">Semi Finals</div>
                                 <div className="flex flex-col gap-24 md:gap-40"> 
-                                    <MatchNode match={BRACKET_DATA[4]} />
-                                    <MatchNode match={BRACKET_DATA[5]} />
+                                    {matches.filter(m => m.round === 1).map(m => (
+                                        <MatchNode key={m.id} match={m} />
+                                    ))}
                                 </div>
                             </div>
 
@@ -336,7 +322,9 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
                             <div className="flex flex-col gap-8 md:gap-12 justify-center pt-4 md:pt-8">
                                 <div className="text-center text-[10px] md:text-xs font-bold text-yellow-500 uppercase tracking-[0.3em] mb-4 md:mb-8 flex items-center justify-center gap-2 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"><Trophy size={14} className="md:w-4 md:h-4"/> Grand Final</div>
                                 <div className="flex flex-col justify-center h-full pb-8">
-                                    <MatchNode match={BRACKET_DATA[6]} />
+                                    {matches.filter(m => m.round === 2).map(m => (
+                                        <MatchNode key={m.id} match={m} />
+                                    ))}
                                 </div>
                             </div>
 

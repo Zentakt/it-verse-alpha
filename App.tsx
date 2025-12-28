@@ -13,30 +13,31 @@ import EventModal from './components/EventModal';
 import AdminPanel from './components/AdminPanel';
 import CyberBackground from './components/CyberBackground';
 import Footer from './components/Footer';
-import { AppState, GameEvent, Match } from './types';
-import { INITIAL_EVENTS, TEAMS, INITIAL_PROFILE } from './constants';
+import LoginView from './components/LoginView'; 
+import { AppState, GameEvent, Match, Team, UserProfile } from './types';
+import { INITIAL_EVENTS, TEAMS as INITIAL_TEAMS, INITIAL_PROFILE } from './constants';
 import confetti from 'canvas-confetti';
 
-// Define the stages of the app intro sequence
 type IntroStage = 'loader' | 'portal' | 'content';
 
 const App: React.FC = () => {
   const [introStage, setIntroStage] = useState<IntroStage>('loader');
-  // New state to persist the portal during transition to content
   const [showPortal, setShowPortal] = useState(false);
   const teamSectionRef = useRef<HTMLDivElement>(null);
   
   // App State
   const [appState, setAppState] = useState<AppState>({
-    // Set countdown to 15 seconds from now as requested
     countdownEnd: new Date(Date.now() + 1000 * 15).toISOString(),
     isTorchLit: false,
     selectedTeamId: null,
     currentView: 'games'
   });
 
+  // Dynamic Data State
+  const [teams, setTeams] = useState<Record<string, Team>>(INITIAL_TEAMS);
   const [events, setEvents] = useState<GameEvent[]>(INITIAL_EVENTS);
   const [selectedEvent, setSelectedEvent] = useState<GameEvent | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_PROFILE);
 
   const handleCountdownUpdate = (date: string) => {
     setAppState(prev => ({ ...prev, countdownEnd: date, isTorchLit: false }));
@@ -46,11 +47,8 @@ const App: React.FC = () => {
     setAppState(prev => ({ ...prev, isTorchLit: true }));
   };
 
-  // Auto-scroll to team selection when torch is lit
   useEffect(() => {
     if (appState.isTorchLit && !appState.selectedTeamId) {
-      // Delay to let the torch ignition animation play and linger for effect (3s standby)
-      // 1.5s for ignition + 3.0s standby = 4500ms
       const timer = setTimeout(() => {
         teamSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 4500); 
@@ -58,16 +56,13 @@ const App: React.FC = () => {
     }
   }, [appState.isTorchLit, appState.selectedTeamId]);
 
-  // Handle Loader -> Portal Transition
   const handleLoaderComplete = () => {
     setIntroStage('portal');
     setShowPortal(true);
   };
 
-  // Handle Portal -> Content Transition (Seamless)
   const handlePortalComplete = () => {
     setIntroStage('content');
-    // Keep Portal mounted for 2 seconds while it fades out via CSS opacity
     setTimeout(() => {
         setShowPortal(false);
     }, 2000);
@@ -75,8 +70,7 @@ const App: React.FC = () => {
 
   const handleTeamSelect = (teamId: string) => {
     setAppState(prev => ({ ...prev, selectedTeamId: teamId }));
-    // Trigger confetti for celebration
-    const teamColor = TEAMS[teamId].color;
+    const teamColor = teams[teamId].color;
     confetti({
       particleCount: 150,
       spread: 100,
@@ -84,7 +78,6 @@ const App: React.FC = () => {
       colors: [teamColor, '#ffffff'],
       zIndex: 1000,
     });
-    // Scroll back to top for dashboard
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -92,6 +85,13 @@ const App: React.FC = () => {
     setAppState(prev => ({ ...prev, currentView: view }));
   };
 
+  const handleLogin = (username: string) => {
+      setUserProfile(prev => ({ ...prev, username: username, badges: [...prev.badges, 'Verified Agent'] }));
+      setAppState(prev => ({ ...prev, currentView: 'games' }));
+      triggerConfetti();
+  };
+
+  // ADMIN ACTIONS
   const updateMatchStatus = (eventId: string, matchId: string, status: Match['status']) => {
     setEvents(prevEvents => prevEvents.map(evt => {
       if (evt.id !== eventId) return evt;
@@ -100,6 +100,70 @@ const App: React.FC = () => {
         matches: evt.matches.map(m => m.id === matchId ? { ...m, status } : m)
       };
     }));
+  };
+
+  const updateMatchStream = (eventId: string, matchId: string, streamUrl: string) => {
+    setEvents(prevEvents => prevEvents.map(evt => {
+        if (evt.id !== eventId) return evt;
+        return {
+            ...evt,
+            matches: evt.matches.map(m => m.id === matchId ? { ...m, streamUrl } : m)
+        }
+    }));
+  };
+
+  const updateEvent = (eventId: string, updates: Partial<GameEvent> | any) => {
+      setEvents(prevEvents => prevEvents.map(evt => {
+          if (evt.id !== eventId) return evt;
+          // Handle deep merge for details
+          let newDetails = evt.details;
+          if(updates.details) {
+              newDetails = { ...evt.details, ...updates.details };
+          }
+          return { ...evt, ...updates, details: newDetails };
+      }));
+  };
+
+  const updateTeam = (teamId: string, updates: Partial<Team>) => {
+      setTeams(prev => ({
+          ...prev,
+          [teamId]: { ...prev[teamId], ...updates }
+      }));
+  };
+
+  const updateTeamPoints = (teamId: string, points: number, source: string) => {
+      setTeams(prev => {
+          const team = prev[teamId];
+          if (!team) return prev;
+          return {
+              ...prev,
+              [teamId]: {
+                  ...team,
+                  breakdown: [...team.breakdown, { source, points }]
+              }
+          };
+      });
+  };
+
+  // Updated to support specific event bracket
+  const updateBracketMatch = (eventId: string, matchId: string, p1Score: number | null, p2Score: number | null, status: any) => {
+      setEvents(prevEvents => prevEvents.map(evt => {
+          if (evt.id !== eventId) return evt;
+          return {
+              ...evt,
+              bracket: evt.bracket.map(m => {
+                  if (m.id !== matchId) return m;
+                  const p1Winner = (p1Score !== null && p2Score !== null) ? p1Score > p2Score : false;
+                  const p2Winner = (p1Score !== null && p2Score !== null) ? p2Score > p1Score : false;
+                  return {
+                      ...m,
+                      status,
+                      p1: { ...m.p1, score: p1Score, isWinner: p1Winner },
+                      p2: { ...m.p2, score: p2Score, isWinner: p2Winner }
+                  };
+              })
+          };
+      }));
   };
 
   const triggerConfetti = () => {
@@ -112,88 +176,90 @@ const App: React.FC = () => {
     });
   };
 
-  // Determine Background State
   let bgMode: 'static' | 'cruise' | 'warp' = 'static';
-  let bgColor = '#7c3aed'; // Default Purple
+  let bgColor = '#7c3aed';
 
   if (introStage === 'portal') {
     bgMode = 'warp';
     bgColor = '#00ffff';
   } else if (introStage === 'content') {
     if (!appState.selectedTeamId) {
-       bgMode = 'static'; // Hero view
+       bgMode = 'static';
     } else {
-       bgMode = 'cruise'; // Dashboard view
-       bgColor = TEAMS[appState.selectedTeamId].color;
+       bgMode = 'cruise';
+       bgColor = teams[appState.selectedTeamId].color;
     }
-  }
-
-  // --- RENDER ---
-
-  if (introStage === 'loader') {
-    return <Loader onComplete={handleLoaderComplete} />;
   }
 
   return (
     <>
       <CyberBackground mode={bgMode} colorTheme={bgColor} />
 
-      {/* PORTAL LAYER - Persists during transition to allow seamless overlay */}
+      {introStage === 'loader' && (
+        <Loader onComplete={handleLoaderComplete} />
+      )}
+
       {showPortal && (
         <div className={`fixed inset-0 z-[50] transition-opacity duration-1000 ease-out ${introStage === 'content' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
              <PortalTransition onComplete={handlePortalComplete} />
         </div>
       )}
 
-      {/* CONTENT LAYER - Renders underneath Portal initially */}
       {introStage === 'content' && (
         <>
-            {/* 1. Initial State: Hero with Countdown -> Torch Interaction */}
             {!appState.selectedTeamId ? (
                 <div className="relative min-h-screen text-white overflow-x-hidden animate-in fade-in duration-1000">
                     <Hero appState={appState} onTorchLight={handleTorchLight} />
-                    
-                    {/* Render Team Lore Below Hero when lit */}
                     {appState.isTorchLit && (
                     <div ref={teamSectionRef} className="animate-in fade-in duration-1000">
-                        <TeamLore onSelect={handleTeamSelect} />
+                        <TeamLore onSelect={handleTeamSelect} teams={teams} />
                         <Footer />
                     </div>
                     )}
-                    
                     <AdminPanel 
                         appState={appState} 
                         events={events} 
+                        teams={teams}
+                        bracketData={[]} // No global bracket anymore
                         updateCountdown={handleCountdownUpdate} 
                         updateMatchStatus={updateMatchStatus} 
+                        updateMatchStream={updateMatchStream}
+                        updateEvent={updateEvent}
+                        updateTeam={updateTeam}
+                        updateTeamPoints={updateTeamPoints}
+                        updateBracketMatch={(mId, s1, s2, st) => console.log('Use event specific')}
+                        updateEventBracketMatch={updateBracketMatch}
                         toggleConfetti={triggerConfetti}
                     />
                 </div>
             ) : (
-                /* 2. Main Dashboard State (After Team Selection) */
                 <DashboardLayout 
-                    currentTeam={TEAMS[appState.selectedTeamId]} 
-                    userProfile={INITIAL_PROFILE}
+                    currentTeam={teams[appState.selectedTeamId]} 
+                    userProfile={userProfile}
                     currentView={appState.currentView}
                     onNavigate={handleNavigate}
                 >
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
                         {appState.currentView === 'games' && (
-                            <GamesGrid events={events} teams={TEAMS} onSelectEvent={setSelectedEvent} />
+                            <GamesGrid events={events} teams={teams} onSelectEvent={setSelectedEvent} />
                         )}
-                        
                         {appState.currentView === 'leaderboard' && (
-                            <Scoreboard teams={TEAMS} />
+                            <Scoreboard teams={teams} />
                         )}
-                        
                         {appState.currentView === 'scanner' && (
-                            <QRScanner currentTeam={TEAMS[appState.selectedTeamId]} />
+                            <QRScanner currentTeam={teams[appState.selectedTeamId]} />
                         )}
-
                         {appState.currentView === 'tournaments' && (
                             <TournamentsView 
                                 onNavigate={handleNavigate} 
-                                currentTeam={TEAMS[appState.selectedTeamId]}
+                                currentTeam={teams[appState.selectedTeamId]}
+                                events={events}
+                            />
+                        )}
+                        {appState.currentView === 'login' && (
+                            <LoginView 
+                                currentTeam={teams[appState.selectedTeamId]}
+                                onLogin={handleLogin}
                             />
                         )}
                     </div>
@@ -201,7 +267,23 @@ const App: React.FC = () => {
                     <EventModal 
                         event={selectedEvent} 
                         onClose={() => setSelectedEvent(null)} 
-                        teams={TEAMS}
+                        teams={teams}
+                    />
+                    
+                    <AdminPanel 
+                        appState={appState} 
+                        events={events} 
+                        teams={teams}
+                        bracketData={[]}
+                        updateCountdown={handleCountdownUpdate} 
+                        updateMatchStatus={updateMatchStatus} 
+                        updateMatchStream={updateMatchStream}
+                        updateEvent={updateEvent}
+                        updateTeam={updateTeam}
+                        updateTeamPoints={updateTeamPoints}
+                        updateBracketMatch={(mId, s1, s2, st) => console.log('Use event specific')}
+                        updateEventBracketMatch={updateBracketMatch}
+                        toggleConfetti={triggerConfetti}
                     />
                 </DashboardLayout>
             )}

@@ -10,19 +10,19 @@ gsap.registerPlugin(ScrollTrigger);
 // --- SHARED COMPONENTS ---
 
 const LiveBadge: React.FC = () => (
-    <div className="inline-flex items-center gap-1.5 bg-[#ea0029] text-white text-[10px] font-bold px-2 py-0.5 rounded-[4px] uppercase tracking-wider shadow-lg">
+    <div className="inline-flex items-center gap-1.5 bg-[#ea0029] text-white text-[10px] font-bold px-2 py-0.5 rounded-[2px] uppercase tracking-wider shadow-lg">
         <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
         LIVE
     </div>
 );
 
 const TagPill: React.FC<{ label: string }> = ({ label }) => (
-    <span className="text-xs font-semibold text-gray-300 bg-white/10 px-2.5 py-1 rounded hover:bg-white/20 transition-colors cursor-pointer border border-white/5">
+    <span className="text-[10px] font-bold text-gray-400 bg-[#1a1a1f] px-2 py-0.5 rounded border border-white/5 uppercase tracking-wide">
         {label}
     </span>
 );
 
-// --- GLITCH CARD COMPONENT ---
+// --- GLITCH CARD COMPONENT (REFINED) ---
 
 const GLITCH_COLORS = ['#ff00de', '#00ffff', '#ffff00', '#ff0000', '#00ff00', '#7c3aed'];
 
@@ -32,7 +32,6 @@ const GameCard: React.FC<{ item: GameEvent; onSelect: (evt: GameEvent) => void }
 
     const handleMouseEnter = () => {
         setIsHovered(true);
-        // Randomize color on each hover for that chaotic glitch feel
         setAccentColor(GLITCH_COLORS[Math.floor(Math.random() * GLITCH_COLORS.length)]);
     };
 
@@ -45,43 +44,63 @@ const GameCard: React.FC<{ item: GameEvent; onSelect: (evt: GameEvent) => void }
             onClick={() => onSelect(item)}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            className="w-[280px] md:w-[320px] cursor-pointer group flex flex-col gap-3 perspective-1000"
+            className="w-[280px] md:w-[320px] cursor-pointer group relative"
+            style={{ paddingLeft: '6px', paddingBottom: '6px' }} // Reserve space for the offset
         >
-            {/* Thumbnail */}
+            {/* SOLID OFFSET BORDER (The "Shadow" Block) - Fixed to Bottom-Left */}
             <div 
-                className="relative aspect-video bg-[#1f1f23] transition-all duration-100 ease-out border border-transparent z-10 will-change-transform"
-                style={{
-                    transform: isHovered ? 'translate(6px, -6px)' : 'none',
-                    boxShadow: isHovered ? `-6px 6px 0px ${accentColor}` : 'none',
-                    borderColor: isHovered ? accentColor : 'transparent'
-                }}
+                className="absolute inset-0 bg-[var(--accent)] z-0 transition-all duration-200 ease-out rounded-sm"
+                style={{ 
+                    '--accent': isHovered ? accentColor : '#1f1f23', 
+                    // Position absolute 0 covers the reserved padding area, creating the offset effect naturally
+                    top: '6px', 
+                    left: '0px',
+                    right: '6px',
+                    bottom: '0px',
+                } as React.CSSProperties}
+            ></div>
+
+            {/* Thumbnail Container (Top Layer) */}
+            <div className="relative z-10 flex flex-col gap-3 bg-[#0e0e10] p-0 transition-transform duration-200"
+                 style={{ transform: isHovered ? 'translate(2px, -2px)' : 'translate(0, 0)' }}
             >
-                <img src={item.image} alt="" className="w-full h-full object-cover" />
-                <div className="absolute top-2 left-2">
-                    <LiveBadge />
+                <div className="relative aspect-video bg-[#1f1f23] overflow-hidden border border-white/5">
+                    <img src={item.image} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    
+                    {/* Live Badge */}
+                    <div className="absolute top-2 left-2">
+                        <LiveBadge />
+                    </div>
+
+                    {/* Viewer Count Overlay */}
+                    <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-bold text-white flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-500 rounded-full"></span> {Math.floor(Math.random() * 2000) + 500} viewers
+                    </div>
+                    
+                    {/* Hover Glitch Overlay */}
+                    <div className={`absolute inset-0 bg-white/10 pointer-events-none mix-blend-overlay transition-opacity duration-100 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px] opacity-20"></div>
+                    </div>
                 </div>
                 
-                {/* Glitch Overlay (Noise) */}
-                <div className={`absolute inset-0 bg-white/10 pointer-events-none mix-blend-overlay transition-opacity duration-100 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
-                     <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px] opacity-20"></div>
-                </div>
-            </div>
-            
-            {/* Meta */}
-            <div className="pr-2 transition-transform duration-100" style={{ transform: isHovered ? 'translate(2px, -2px)' : 'none' }}>
-                <h4 
-                    className="text-base md:text-lg font-bold text-white leading-tight mb-1.5 truncate transition-colors duration-100" 
-                    style={{ color: isHovered ? accentColor : 'white', textShadow: isHovered ? `0 0 10px ${accentColor}80` : 'none' }}
-                    title={item.title}
-                >
-                    {item.title}
-                </h4>
-                <div className="text-sm text-gray-400 hover:text-white transition-colors mb-2.5">
-                    {item.game}
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                    <TagPill label="Esports" />
-                    {item.bracketType && <TagPill label={item.bracketType} />}
+                {/* Meta Info */}
+                <div className="pr-2 relative z-10 pl-1 pb-1">
+                    <div className="flex justify-between items-start">
+                        <h4 
+                            className="text-base font-bold text-white leading-tight mb-1 truncate transition-colors duration-200" 
+                            style={{ textShadow: isHovered ? `0 0 10px ${accentColor}80` : 'none' }}
+                            title={item.title}
+                        >
+                            {item.title}
+                        </h4>
+                    </div>
+                    <div className="text-xs text-gray-400 hover:text-white transition-colors mb-2">
+                        {item.game}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        <TagPill label="Esports" />
+                        {item.bracketType && <TagPill label={item.bracketType} />}
+                    </div>
                 </div>
             </div>
         </div>
@@ -370,7 +389,8 @@ const HorizontalRow: React.FC<ScrollRowProps> = ({ title, subtitle, items, onSel
             <div className="relative group/scroll">
                 <div 
                     ref={containerRef}
-                    className="flex gap-4 overflow-x-auto pb-6 pt-2 px-1 snap-x snap-mandatory scrollbar-hide [&::-webkit-scrollbar]:hidden"
+                    // Adjusted padding pl-5 to perfectly align the offset border of the first item with header text
+                    className="flex gap-4 overflow-x-auto pb-6 pt-2 pl-5 pr-5 snap-x snap-mandatory scrollbar-hide [&::-webkit-scrollbar]:hidden"
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {items.map((item, i) => (

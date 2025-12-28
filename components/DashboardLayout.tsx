@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { Team, UserProfile, AppState } from '../types';
-import { Menu, X, Gamepad2, Trophy, Scan, LogOut, ChevronRight, Hexagon, Activity, Power, User } from 'lucide-react';
+import { Menu, X, Gamepad2, Trophy, Scan, LogOut, ChevronRight, Hexagon, Activity, Power, User, LogIn } from 'lucide-react';
 import Footer from './Footer';
 
 interface DashboardLayoutProps {
@@ -699,6 +699,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProf
     { id: 'leaderboard', label: 'FACTION RANK', icon: Trophy },
     { id: 'scanner', label: 'UPLINK SCAN', icon: Scan },
     { id: 'tournaments', label: 'TOURNAMENTS', icon: User },
+    { id: 'login', label: 'LOGIN', icon: LogIn },
   ] as const;
 
   const handleNav = (view: AppState['currentView']) => {
