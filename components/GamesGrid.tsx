@@ -28,43 +28,29 @@ const GLITCH_COLORS = ['#ff00de', '#00ffff', '#ffff00', '#ff0000', '#00ff00', '#
 
 const GameCard: React.FC<{ item: GameEvent; onSelect: (evt: GameEvent) => void }> = ({ item, onSelect }) => {
     const [accentColor, setAccentColor] = useState('#9333ea');
-    const [isHovered, setIsHovered] = useState(false);
 
     const handleMouseEnter = () => {
-        setIsHovered(true);
         setAccentColor(GLITCH_COLORS[Math.floor(Math.random() * GLITCH_COLORS.length)]);
-    };
-
-    const handleMouseLeave = () => {
-        setIsHovered(false);
     };
 
     return (
         <div 
             onClick={() => onSelect(item)}
             onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            className="w-[280px] md:w-[320px] cursor-pointer group relative"
-            style={{ paddingLeft: '6px', paddingBottom: '6px' }} // Reserve space for the offset
+            className="w-[280px] md:w-[320px] cursor-pointer group relative perspective-1000"
         >
-            {/* SOLID OFFSET BORDER (The "Shadow" Block) - Fixed to Bottom-Left */}
+            {/* HOVER SHADOW BLOCK - Hidden by default, appears on hover */}
             <div 
-                className="absolute inset-0 bg-[var(--accent)] z-0 transition-all duration-200 ease-out rounded-sm"
+                className="absolute inset-0 z-0 transition-all duration-300 ease-out rounded-lg opacity-0 group-hover:opacity-100"
                 style={{ 
-                    '--accent': isHovered ? accentColor : '#1f1f23', 
-                    // Position absolute 0 covers the reserved padding area, creating the offset effect naturally
-                    top: '6px', 
-                    left: '0px',
-                    right: '6px',
-                    bottom: '0px',
-                } as React.CSSProperties}
+                    backgroundColor: accentColor,
+                    transform: 'translate(-6px, 6px)', // Offset to Bottom-Left
+                }}
             ></div>
 
             {/* Thumbnail Container (Top Layer) */}
-            <div className="relative z-10 flex flex-col gap-3 bg-[#0e0e10] p-0 transition-transform duration-200"
-                 style={{ transform: isHovered ? 'translate(2px, -2px)' : 'translate(0, 0)' }}
-            >
-                <div className="relative aspect-video bg-[#1f1f23] overflow-hidden border border-white/5">
+            <div className="relative z-10 flex flex-col gap-3 bg-[#0e0e10] p-0 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:translate-x-1 border border-white/5 group-hover:border-transparent rounded-lg h-full">
+                <div className="relative aspect-video bg-[#1f1f23] overflow-hidden rounded-t-lg">
                     <img src={item.image} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     
                     {/* Live Badge */}
@@ -78,23 +64,23 @@ const GameCard: React.FC<{ item: GameEvent; onSelect: (evt: GameEvent) => void }
                     </div>
                     
                     {/* Hover Glitch Overlay */}
-                    <div className={`absolute inset-0 bg-white/10 pointer-events-none mix-blend-overlay transition-opacity duration-100 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+                    <div className="absolute inset-0 bg-white/10 pointer-events-none mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px] opacity-20"></div>
                     </div>
                 </div>
                 
                 {/* Meta Info */}
-                <div className="pr-2 relative z-10 pl-1 pb-1">
+                <div className="px-3 pb-4">
                     <div className="flex justify-between items-start">
                         <h4 
-                            className="text-base font-bold text-white leading-tight mb-1 truncate transition-colors duration-200" 
-                            style={{ textShadow: isHovered ? `0 0 10px ${accentColor}80` : 'none' }}
+                            className="text-base font-bold text-white leading-tight mb-1 truncate transition-colors duration-200 group-hover:text-[var(--accent)]" 
+                            style={{ '--accent': accentColor } as React.CSSProperties}
                             title={item.title}
                         >
                             {item.title}
                         </h4>
                     </div>
-                    <div className="text-xs text-gray-400 hover:text-white transition-colors mb-2">
+                    <div className="text-xs text-gray-400 mb-3">
                         {item.game}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -275,10 +261,10 @@ const HeroShowcase: React.FC<HeroShowcaseProps> = ({ events, onPlay }) => {
                 </div>
 
                 {/* Carousel Strip */}
-                <div className="relative w-full md:w-[600px] overflow-hidden mask-fade-right">
+                <div className="relative w-full md:w-[600px]">
                     <div 
                         ref={carouselRef}
-                        className="flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory py-2 px-1 [&::-webkit-scrollbar]:hidden"
+                        className="flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide snap-x snap-mandatory py-4 px-4 [&::-webkit-scrollbar]:hidden"
                         style={{ scrollBehavior: 'smooth', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                     >
                         {events.map((evt, idx) => {
@@ -389,8 +375,7 @@ const HorizontalRow: React.FC<ScrollRowProps> = ({ title, subtitle, items, onSel
             <div className="relative group/scroll">
                 <div 
                     ref={containerRef}
-                    // Adjusted padding pl-5 to perfectly align the offset border of the first item with header text
-                    className="flex gap-4 overflow-x-auto pb-6 pt-2 pl-5 pr-5 snap-x snap-mandatory scrollbar-hide [&::-webkit-scrollbar]:hidden"
+                    className="flex gap-4 overflow-x-auto pb-6 pt-2 pl-1 pr-5 snap-x snap-mandatory scrollbar-hide [&::-webkit-scrollbar]:hidden"
                     style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
                 >
                     {items.map((item, i) => (

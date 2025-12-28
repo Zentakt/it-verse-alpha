@@ -1,5 +1,7 @@
 {
   "name": "IT-VERSE",
   "description": "A futuristic, pixel-glitch themed event platform featuring a 3D interactive torch, live match tracking, and real-time tournament brackets.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

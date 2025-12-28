@@ -61,6 +61,15 @@ export interface UserProfile {
   badges: string[];
 }
 
+export interface Challenge {
+    id: string;
+    title: string;
+    description: string;
+    question: string;
+    answer: string;
+    points: number;
+}
+
 export interface AppState {
   countdownEnd: string; // ISO String
   isTorchLit: boolean;

@@ -14,7 +14,7 @@ import AdminPanel from './components/AdminPanel';
 import CyberBackground from './components/CyberBackground';
 import Footer from './components/Footer';
 import LoginView from './components/LoginView'; 
-import { AppState, GameEvent, Match, Team, UserProfile } from './types';
+import { AppState, GameEvent, Match, Team, UserProfile, Challenge } from './types';
 import { INITIAL_EVENTS, TEAMS as INITIAL_TEAMS, INITIAL_PROFILE } from './constants';
 import confetti from 'canvas-confetti';
 
@@ -38,6 +38,12 @@ const App: React.FC = () => {
   const [events, setEvents] = useState<GameEvent[]>(INITIAL_EVENTS);
   const [selectedEvent, setSelectedEvent] = useState<GameEvent | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_PROFILE);
+  
+  // Challenge State (Lifted from AdminPanel)
+  const [challenges, setChallenges] = useState<Challenge[]>([
+      { id: 'c1', title: 'Binary Gateway', description: 'Decrypt the entrance.', question: 'Convert 101010 to decimal.', answer: '42', points: 150 },
+      { id: 'c2', title: 'Syntax Error', description: 'Locate the missing token.', question: 'What symbol ends a statement in C++?', answer: ';', points: 100 }
+  ]);
 
   const handleCountdownUpdate = (date: string) => {
     setAppState(prev => ({ ...prev, countdownEnd: date, isTorchLit: false }));
@@ -69,7 +75,9 @@ const App: React.FC = () => {
   };
 
   const handleTeamSelect = (teamId: string) => {
-    setAppState(prev => ({ ...prev, selectedTeamId: teamId }));
+    // Force reset to 'games' view and instant scroll to top
+    setAppState(prev => ({ ...prev, selectedTeamId: teamId, currentView: 'games' }));
+    
     const teamColor = teams[teamId].color;
     confetti({
       particleCount: 150,
@@ -78,11 +86,15 @@ const App: React.FC = () => {
       colors: [teamColor, '#ffffff'],
       zIndex: 1000,
     });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Ensure we start at the Hero Section immediately
+    window.scrollTo(0, 0);
   };
 
   const handleNavigate = (view: AppState['currentView']) => {
     setAppState(prev => ({ ...prev, currentView: view }));
+    // Optional: Scroll to top on nav change
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleLogin = (username: string) => {
@@ -221,6 +233,8 @@ const App: React.FC = () => {
                         events={events} 
                         teams={teams}
                         bracketData={[]} // No global bracket anymore
+                        challenges={challenges}
+                        updateChallenges={setChallenges}
                         updateCountdown={handleCountdownUpdate} 
                         updateMatchStatus={updateMatchStatus} 
                         updateMatchStream={updateMatchStream}
@@ -247,7 +261,7 @@ const App: React.FC = () => {
                             <Scoreboard teams={teams} />
                         )}
                         {appState.currentView === 'scanner' && (
-                            <QRScanner currentTeam={teams[appState.selectedTeamId]} />
+                            <QRScanner currentTeam={teams[appState.selectedTeamId]} challenges={challenges} />
                         )}
                         {appState.currentView === 'tournaments' && (
                             <TournamentsView 
@@ -275,6 +289,8 @@ const App: React.FC = () => {
                         events={events} 
                         teams={teams}
                         bracketData={[]}
+                        challenges={challenges}
+                        updateChallenges={setChallenges}
                         updateCountdown={handleCountdownUpdate} 
                         updateMatchStatus={updateMatchStatus} 
                         updateMatchStream={updateMatchStream}
