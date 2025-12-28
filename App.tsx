@@ -39,10 +39,29 @@ const App: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<GameEvent | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_PROFILE);
   
-  // Challenge State (Lifted from AdminPanel)
+  // Challenge State (Updated with Quiz and Valid Types)
   const [challenges, setChallenges] = useState<Challenge[]>([
-      { id: 'c1', title: 'Binary Gateway', description: 'Decrypt the entrance.', question: 'Convert 101010 to decimal.', answer: '42', points: 150 },
-      { id: 'c2', title: 'Syntax Error', description: 'Locate the missing token.', question: 'What symbol ends a statement in C++?', answer: ';', points: 100 }
+      { id: 'c1', title: 'Neural Sync', description: 'Establish neural handshake protocol.', question: 'Follow the pattern.', answer: 'ignore', points: 150, gameType: 'sequence' },
+      { id: 'c2', title: 'Memory Fragment', description: 'Reconstruct corrupted data blocks.', question: 'Match the pairs.', answer: 'ignore', points: 200, gameType: 'memory' },
+      { id: 'c3', title: 'Firewall Breach', description: 'Decrypt the security key.', question: 'ENTER PASSKEY: 42', answer: '42', points: 100, gameType: 'cipher' },
+      { 
+          id: 'c4', 
+          title: 'System Aptitude', 
+          description: 'Prove your knowledge of the core systems.', 
+          question: 'Answer 5 Questions correctly.', 
+          answer: 'ignore', 
+          points: 300, 
+          gameType: 'quiz',
+          gameConfig: {
+              questions: [
+                  { q: "What is the primary function of a React Key?", options: ["Identify DOM elements", "Enhance Security", "Sort Arrays", "Manage State", "Debug Code"], correct: 0 },
+                  { q: "Which hook is used for side effects?", options: ["useState", "useContext", "useEffect", "useReducer", "useCallback"], correct: 2 },
+                  { q: "What does CSS 'z-index' control?", options: ["Opacity", "Zoom Level", "Stacking Order", "Animation Speed", "Grid Layout"], correct: 2 },
+                  { q: "Which status code indicates 'Not Found'?", options: ["200", "500", "301", "403", "404"], correct: 4 },
+                  { q: "In binary, what is 101?", options: ["3", "5", "7", "2", "6"], correct: 1 }
+              ]
+          }
+      }
   ]);
 
   const handleCountdownUpdate = (date: string) => {

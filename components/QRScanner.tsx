@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { Scan, Keyboard, Camera, RefreshCw, X, CheckCircle2, Zap, AlertTriangle, Brain, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Team, Challenge } from '../types';
+import ChallengeGames from './ChallengeGames';
 
 interface QRScannerProps {
   currentTeam: Team;
@@ -72,6 +73,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ currentTeam, challenges }) => {
   // Scanning State
   const [scannedResult, setScannedResult] = useState<string | null>(null);
   const [activeChallenge, setActiveChallenge] = useState<Challenge | null>(null);
+  const [showGameOverlay, setShowGameOverlay] = useState(false);
   const [challengeSolved, setChallengeSolved] = useState(false);
   
   // UI State
@@ -157,7 +159,14 @@ const QRScanner: React.FC<QRScannerProps> = ({ currentTeam, challenges }) => {
           if (challenge) {
               setActiveChallenge(challenge);
               if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
-              animateHudLock('#00ffff'); // Cyan for puzzle
+              
+              // NEW LOGIC: Check for Mini-Game
+              if (challenge.gameType && challenge.gameType !== 'none') {
+                  setShowGameOverlay(true);
+              } else {
+                  // Standard Riddle/Input
+                  animateHudLock('#00ffff');
+              }
               return;
           }
       }
@@ -191,10 +200,21 @@ const QRScanner: React.FC<QRScannerProps> = ({ currentTeam, challenges }) => {
       }
   };
 
+  const handleGameComplete = (success: boolean) => {
+      setShowGameOverlay(false);
+      if (success) {
+          setChallengeSolved(true);
+          animateHudLock('#22c55e');
+      } else {
+          resetScanner();
+      }
+  };
+
   const resetScanner = () => {
       setScannedResult(null);
       setActiveChallenge(null);
       setChallengeSolved(false);
+      setShowGameOverlay(false);
       setUserAnswer('');
       setManualCode('');
       initBarcodeDetector();
@@ -354,8 +374,17 @@ const QRScanner: React.FC<QRScannerProps> = ({ currentTeam, challenges }) => {
                     </div>
                 )}
 
-                {/* --- CHALLENGE MODE UI --- */}
-                {activeChallenge && !challengeSolved && (
+                {/* --- GAME OVERLAY --- */}
+                {showGameOverlay && activeChallenge && (
+                    <ChallengeGames 
+                        challenge={activeChallenge} 
+                        onComplete={handleGameComplete} 
+                        onClose={resetScanner}
+                    />
+                )}
+
+                {/* --- STANDARD CHALLENGE MODE UI (Legacy Input) --- */}
+                {activeChallenge && !showGameOverlay && !challengeSolved && (
                     <div className="absolute inset-0 flex items-center justify-center z-50 p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
                         <div className="w-full max-w-lg bg-[#0a0a10] border border-cyan-500/30 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(6,182,212,0.2)]">
                             <div className="bg-cyan-900/20 p-6 border-b border-cyan-500/20 flex items-start gap-4">

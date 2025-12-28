@@ -68,6 +68,8 @@ export interface Challenge {
     question: string;
     answer: string;
     points: number;
+    gameType?: 'none' | 'sequence' | 'memory' | 'cipher' | 'quiz';
+    gameConfig?: any; // For custom sequences or card counts
 }
 
 export interface AppState {
