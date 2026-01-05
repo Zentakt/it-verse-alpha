@@ -23,10 +23,6 @@ const seedData = async () => {
     await pool.query('DELETE FROM teams;');
     await pool.query('DELETE FROM app_state;');
     
-    // Reset sequences
-    await pool.query('ALTER SEQUENCE app_state_id_seq RESTART WITH 1;');
-    await pool.query('ALTER SEQUENCE team_breakdown_id_seq RESTART WITH 1;');
-    
     // App State
     console.log('Inserting app state...');
     await pool.query(
