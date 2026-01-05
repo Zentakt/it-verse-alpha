@@ -810,15 +810,32 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
         };
     }, []);
 
-    // Filter streams by placement
-    const heroStreams = liveStreams.filter(s => s.placement === 'hero');
-    const recommendedStreams = liveStreams.filter(s => s.placement === 'recommended');
-    const previousStreams = liveStreams.filter(s => s.placement === 'previous');
+    // Filter streams by placement - support both array and legacy string format
+    const heroStreams = liveStreams.filter(s => 
+        Array.isArray(s.placement) ? s.placement.includes('hero') : s.placement === 'hero'
+    );
+    const recommendedStreams = liveStreams.filter(s => 
+        Array.isArray(s.placement) ? s.placement.includes('recommended') : s.placement === 'recommended'
+    );
+    const previousStreams = liveStreams.filter(s => 
+        Array.isArray(s.placement) ? s.placement.includes('previous') : s.placement === 'previous'
+    );
     
-    // Duplicate for carousel effect if needed
-    const heroCarousel = heroStreams.length > 0 ? [...heroStreams, ...heroStreams] : [];
-    const recommendedCarousel = recommendedStreams.length > 0 ? [...recommendedStreams, ...recommendedStreams] : [];
-    const previousCarousel = previousStreams.length > 0 ? [...previousStreams, ...previousStreams] : [];
+    // Log multi-placement streams for debugging
+    const multiPlacementStreams = liveStreams.filter(s => 
+        Array.isArray(s.placement) && s.placement.length > 1
+    );
+    if (multiPlacementStreams.length > 0) {
+        console.log('🎬 Multi-placement streams:', multiPlacementStreams.map(s => ({
+            title: s.title,
+            placements: s.placement
+        })));
+    }
+    
+    // Use streams directly without duplication
+    const heroCarousel = heroStreams;
+    const recommendedCarousel = recommendedStreams;
+    const previousCarousel = previousStreams;
     
     return (
         <div className="min-h-screen bg-[#0e0e10] font-sans pb-20">

@@ -28,6 +28,8 @@ export interface Match {
   streamUrl?: string; // Embed URL
   round: number;
   winnerId?: string;
+  teamALogo?: string;
+  teamBLogo?: string;
 }
 
 export interface BracketMatch {
@@ -60,6 +62,22 @@ export interface GameEvent {
   bracket: BracketMatch[]; // For the Visual Bracket
   bracketType: 'single' | 'double' | 'round-robin';
   details: TournamentDetails;
+  gameLogo?: string;
+  banner?: string;
+  startDate?: string;
+  format?: string;
+  entryFee?: number;
+  countdownEnd?: string;
+  globalSeed?: number;
+  modeWins?: number;
+  modeLosses?: number;
+  matchHistorySynced?: boolean;
+  statusRegistration?: string;
+  statusConfirmation?: string;
+  statusSeeding?: string;
+  rulesText?: string;
+  availableSlots?: number;
+  confirmedSlots?: number;
   teamRecord?: {
     wins: number;
     losses: number;
@@ -103,7 +121,7 @@ export interface LiveStream {
     game_category?: string;
     tournament_id?: string;
     status: 'scheduled' | 'live' | 'ended';
-    placement: 'hero' | 'recommended' | 'previous';
+    placement: string[]; // Array of placements: can include 'hero', 'recommended', 'previous'
     starts_at?: string;
     ended_at?: string;
     created_at: string;

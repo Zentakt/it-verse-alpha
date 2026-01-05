@@ -11,6 +11,7 @@ interface DashboardLayoutProps {
   userProfile: UserProfile;
   currentView: AppState['currentView'];
   onNavigate: (view: AppState['currentView']) => void;
+  onLogoClick?: () => void;
   children: React.ReactNode;
 }
 
@@ -672,9 +673,9 @@ const MobileMenu: React.FC<MobileMenuProps> = ({ onClose, navItems, currentView,
     );
 };
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProfile, currentView, onNavigate, children }) => {
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProfile, currentView, onNavigate, onLogoClick, children }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [headerText, setHeaderText] = useState("ITE VERSE");
+  const [headerText, setHeaderText] = useState("IT VERSE");
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   
   // Scramble effect on mount
@@ -687,7 +688,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProf
               if (i < iter) return c;
               return chars[Math.floor(Math.random() * chars.length)];
           }).join("");
-          setHeaderText(`ITE ${scrambled}`);
+          setHeaderText(`IT ${scrambled}`);
           if (iter >= target.length) clearInterval(interval);
           iter += 1/3;
       }, 50);
@@ -735,8 +736,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProf
       {/* 2. LEGENDARY HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 h-20 bg-[#05050a]/80 backdrop-blur-xl border-b border-white/5 px-4 md:px-8 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         
-        {/* LOGO AREA - Updated Alignment */}
-        <div className="flex items-center gap-4 group cursor-pointer" onClick={() => onNavigate('games')}>
+        {/* LOGO AREA - Click to return to team selection */}
+        <div className="flex items-center gap-4 group cursor-pointer" onClick={() => onLogoClick?.()}>
             <div className="w-12 h-12 relative flex items-center justify-center bg-white/5 rounded-lg border border-white/10 group-hover:border-[var(--color)] transition-colors duration-300" style={{ '--color': currentTeam.color } as React.CSSProperties}>
                  {/* 3D Emblem Container - Perfectly Centered */}
                  <div className="absolute inset-0 flex items-center justify-center">
@@ -748,7 +749,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProf
             
             <div className="flex flex-col justify-center">
                 <h1 className="text-2xl md:text-3xl font-black tracking-widest leading-none font-cyber text-white flex gap-3 items-center">
-                    <span className="opacity-80">ITE</span> 
+                    <span className="opacity-80">IT</span> 
                     <span className="relative">
                         {/* Glitch Shadow Effect for text */}
                         <span className="absolute top-0 left-0 -ml-[2px] opacity-70 blur-[1px]" style={{ color: currentTeam.color, mixBlendMode: 'screen' }}>VERSE</span>

@@ -16,6 +16,7 @@ interface AdminPanelProps {
   updateCountdown: (date: string) => void;
   updateMatchStatus: (eventId: string, matchId: string, status: Match['status']) => void;
     updateMatchStream: (eventId: string, matchId: string, streamUrl: string) => void;
+        updateMatchResult: (eventId: string, matchId: string, data: Partial<{ status: Match['status']; scoreA: number | null; scoreB: number | null; winnerId?: string | null; teamALogo?: string; teamBLogo?: string }>) => void;
     updateTeamPoints: (teamId: string, points: number, source: string, comment?: string, updatedBy?: string) => void;
     refreshTeamBreakdown?: (teamId: string) => Promise<void>;
   updateBracketMatch: (matchId: string, p1Score: number | null, p2Score: number | null, status: string) => void;
@@ -73,7 +74,7 @@ const StreamEditor = ({ match, eventId, onSave }: { match: Match, eventId: strin
 
 const AdminPanel: React.FC<AdminPanelProps> = ({
     appState, events, teams, bracketData, challenges, updateChallenges,
-    updateCountdown, updateMatchStatus, updateMatchStream, updateTeamPoints, refreshTeamBreakdown, updateBracketMatch, updateEventBracketMatch, updateEvent, updateTeam, createTeam, deleteTeam, createEvent, deleteEvent, toggleConfetti, onClose
+    updateCountdown, updateMatchStatus, updateMatchStream, updateMatchResult, updateTeamPoints, refreshTeamBreakdown, updateBracketMatch, updateEventBracketMatch, updateEvent, updateTeam, createTeam, deleteTeam, createEvent, deleteEvent, toggleConfetti, onClose
 }) => {
   // Start open when onClose is provided (means we're on /admin route)
   const [isOpen, setIsOpen] = useState(!!onClose);
@@ -88,6 +89,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     const [teamDraft, setTeamDraft] = useState<{ id: string; name: string; color: string; logo: string; seed: number; description: string }>(
         { id: '', name: '', color: '#7c3aed', logo: '', seed: 1, description: '' }
     );
+    const [isUploadingGameLogo, setIsUploadingGameLogo] = useState(false);
+    const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   
   // Existing States
   const [selectedEventId, setSelectedEventId] = useState<string | null>(events[0]?.id || null);
@@ -482,7 +485,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             game_category: '',
             tournament_id: '',
             status: 'scheduled',
-            placement: 'recommended', team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0,
+            placement: ['recommended'], team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0,
             description: ''
           });
           setThumbnailFile(null);
@@ -548,6 +551,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       setSelectedEventId(newId);
       setShowCreateEvent(false);
       setEventDraft({ title: '', game: '', shortName: '', image: '', description: '', bracketType: 'single' });
+    };
+
+    const handleDeleteEvent = async () => {
+            if (!deleteEvent || !activeEvent) return;
+            const confirmation = window.confirm(`Delete event "${activeEvent.title}"? This will remove its matches and bracket data.`);
+            if (!confirmation) return;
+            const nextEventId = events.find(e => e.id !== activeEvent.id)?.id || null;
+            await deleteEvent(activeEvent.id);
+            setSelectedEventId(nextEventId);
+            setTournamentSubTab('config');
     };
 
   const handleCreateTeam = async () => {
@@ -634,6 +647,104 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         }
     }
   };
+
+    const handleGameLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !activeEvent || !updateEvent) return;
+
+        const allowedTypes = [
+            'image/png',
+            'image/jpeg',
+            'image/webp',
+            'image/svg+xml',
+            'image/x-icon',
+            'image/vnd.microsoft.icon'
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please upload SVG, ICO, PNG, JPG, or WEBP files for the game logo.');
+            e.target.value = '';
+            return;
+        }
+
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB ceiling for logos
+        if (file.size > MAX_SIZE) {
+            alert('Logo too large. Max 5MB.');
+            e.target.value = '';
+            return;
+        }
+
+        setIsUploadingGameLogo(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Upload failed');
+            }
+            const data = await res.json();
+            if (data.url) {
+                await updateEvent(activeEvent.id, { gameLogo: data.url });
+            }
+        } catch (err) {
+            console.error('Failed to upload game logo:', err);
+            alert(`Game logo upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+            setIsUploadingGameLogo(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !activeEvent || !updateEvent) return;
+
+        const allowedTypes = [
+            'image/png',
+            'image/jpeg',
+            'image/webp',
+            'image/jpg',
+            'image/svg+xml',
+            'image/x-icon',
+            'image/vnd.microsoft.icon'
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+            alert('Please upload PNG, JPG, WEBP, SVG, or ICO files for the banner.');
+            e.target.value = '';
+            return;
+        }
+
+        const MAX_SIZE = 10 * 1024 * 1024; // 10MB for banners
+        if (file.size > MAX_SIZE) {
+            alert('Banner too large. Max 10MB.');
+            e.target.value = '';
+            return;
+        }
+
+        setIsUploadingBanner(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || 'Upload failed');
+            }
+            const data = await res.json();
+            if (data.url) {
+                await updateEvent(activeEvent.id, { image: data.url });
+                console.log('✅ Banner uploaded successfully:', data.url);
+            }
+        } catch (err) {
+            console.error('Failed to upload banner:', err);
+            alert(`Banner upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        } finally {
+            setIsUploadingBanner(false);
+            e.target.value = '';
+        }
+    };
 
   // OPEN PRINT STUDIO (Persistent)
   const openPrintStudio = () => {
@@ -1251,7 +1362,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="w-80 bg-[#0c0c12] border-r border-white/10 flex flex-col shrink-0">
                         <div className="p-6 border-b border-white/10 bg-[#111] flex justify-between items-center">
                             <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Live Streams</h3>
-                            <button onClick={() => { setEditingStreamId('new'); setStreamDraft({ title: '', embed_url: '', thumbnail_url: '', thumbnail_mode: 'embed', game_category: '', tournament_id: '', status: 'scheduled', placement: 'recommended', team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0, description: '' }); setThumbnailFile(null); }} className="text-green-500 hover:text-white transition-colors" title="Create new stream"><Plus size={20}/></button>
+                            <button onClick={() => { setEditingStreamId('new'); setStreamDraft({ title: '', embed_url: '', thumbnail_url: '', thumbnail_mode: 'embed', game_category: '', tournament_id: '', status: 'scheduled', placement: ['recommended'], team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0, description: '' }); setThumbnailFile(null); }} className="text-green-500 hover:text-white transition-colors" title="Create new stream"><Plus size={20}/></button>
                         </div>
                         <div className="flex-1 overflow-y-auto">
                             {isLoadingStreams ? (
@@ -1264,7 +1375,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                         <div className="font-bold text-white text-base group-hover:text-purple-300 transition-colors truncate">{s.title}</div>
                                         <div className="text-xs text-gray-500 font-mono mt-1.5 flex justify-between items-center">
                                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.status === 'live' ? 'bg-red-900/50 text-red-300' : s.status === 'scheduled' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-gray-900/50 text-gray-300'}`}>{s.status.toUpperCase()}</span>
-                                            <span className="text-purple-400">{s.placement.toUpperCase()}</span>
+                                            <span className="text-purple-400">{Array.isArray(s.placement) ? s.placement.join(', ').toUpperCase() : s.placement?.toUpperCase()}</span>
                                         </div>
                                     </button>
                                 ))
@@ -1332,12 +1443,37 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Placement</label>
-                                            <select value={streamDraft.placement} onChange={(e) => setStreamDraft({...streamDraft, placement: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none">
-                                                <option value="hero">Hero Section</option>
-                                                <option value="recommended">Recommended</option>
-                                                <option value="previous">Previous Lives</option>
-                                            </select>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Placement Sections (Multi-Select)</label>
+                                            <div className="space-y-3 bg-black/50 border border-white/20 p-4 rounded-lg">
+                                                {[
+                                                    { value: 'hero', label: '🎬 Hero Section', desc: 'Large featured carousel at top' },
+                                                    { value: 'recommended', label: '⭐ Recommended', desc: 'Suggested streams section' },
+                                                    { value: 'previous', label: '📼 Previous Lives', desc: 'Archived/ended streams' }
+                                                ].map(option => (
+                                                    <label key={option.value} className="flex items-start gap-3 cursor-pointer group hover:bg-white/5 p-3 rounded-lg transition-all">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Array.isArray(streamDraft.placement) ? streamDraft.placement.includes(option.value) : false}
+                                                            onChange={(e) => {
+                                                                const currentPlacements = Array.isArray(streamDraft.placement) ? streamDraft.placement : [];
+                                                                const newPlacements = e.target.checked
+                                                                    ? [...currentPlacements, option.value]
+                                                                    : currentPlacements.filter(p => p !== option.value);
+                                                                setStreamDraft({...streamDraft, placement: newPlacements});
+                                                            }}
+                                                            className="w-5 h-5 rounded bg-black border-2 border-purple-500/50 checked:bg-purple-600 checked:border-purple-500 cursor-pointer transition-all focus:ring-2 focus:ring-purple-500/30 mt-0.5"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <div className="text-sm font-bold text-white group-hover:text-purple-300 transition-colors">{option.label}</div>
+                                                            <div className="text-xs text-gray-500 mt-0.5">{option.desc}</div>
+                                                        </div>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse"></span>
+                                                Stream can appear in multiple sections • Changes sync instantly
+                                            </p>
                                         </div>
                                     </div>
 
@@ -1428,10 +1564,170 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2"><ImageIcon size={16}/> Event Visuals</h4>
                                                 <div className="flex flex-col md:flex-row gap-8 items-start">
                                                     <div className="w-full md:w-80 aspect-video bg-black rounded-lg border border-white/10 overflow-hidden relative group"><img src={activeEvent.image} alt="Preview" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" /><div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50"><span className="text-xs font-mono text-white tracking-widest border border-white px-3 py-1.5 rounded">PREVIEW</span></div></div>
-                                                    <div className="flex-1 w-full space-y-6"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Banner Image URL</label><div className="flex gap-3"><input type="text" value={activeEvent.image} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { image: e.target.value })} className="flex-1 bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" placeholder="https://..." /><button className="bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-lg text-white transition-colors"><Upload size={18} /></button></div><p className="text-xs text-gray-600 mt-2">Recommended size: 1920x1080. Supports JPG, PNG, WEBP.</p></div></div>
+                                                    <div className="flex-1 w-full space-y-6">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Banner Image URL</label>
+                                                            <div className="flex gap-3">
+                                                                <input
+                                                                    type="text"
+                                                                    value={activeEvent.image || ''}
+                                                                    onChange={(e) => updateEvent && updateEvent(activeEvent.id, { image: e.target.value })}
+                                                                    className="flex-1 bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none"
+                                                                    placeholder="https://... or upload below"
+                                                                />
+                                                                <label className={`bg-purple-600 hover:bg-purple-500 border border-purple-500 px-4 py-3 rounded-lg text-white text-xs font-bold cursor-pointer transition-colors whitespace-nowrap flex items-center gap-2 ${isUploadingBanner ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                                                                    <Upload size={18} />
+                                                                    {isUploadingBanner ? 'Uploading...' : 'Upload'}
+                                                                    <input
+                                                                        type="file"
+                                                                        accept=".svg,.ico,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/png,image/jpeg,image/jpg,image/webp"
+                                                                        className="hidden"
+                                                                        onChange={handleBannerUpload}
+                                                                        disabled={isUploadingBanner}
+                                                                    />
+                                                                </label>
+                                                            </div>
+                                                            <p className="text-xs text-gray-600 mt-2">Recommended size: 1920x1080. Supports JPG, PNG, WEBP, SVG, ICO.</p>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Game Logo (SVG / ICO / PNG / JPG)</label>
+                                                                <div className="flex gap-3">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={activeEvent.gameLogo || ''}
+                                                                        onChange={(e) => updateEvent && updateEvent(activeEvent.id, { gameLogo: e.target.value })}
+                                                                        className="flex-1 bg-black border border-white/20 text-white p-3 rounded-lg font-mono text-sm focus:border-purple-500 outline-none"
+                                                                        placeholder="https://... or upload below"
+                                                                    />
+                                                                    <label className={`bg-purple-600 hover:bg-purple-500 border border-purple-500 px-4 py-3 rounded-lg text-white text-xs font-bold cursor-pointer transition-colors whitespace-nowrap ${isUploadingGameLogo ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                                                                        {isUploadingGameLogo ? 'Uploading...' : 'Upload Logo'}
+                                                                        <input
+                                                                            type="file"
+                                                                            accept=".svg,.ico,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/png,image/jpeg,image/webp"
+                                                                            className="hidden"
+                                                                            onChange={handleGameLogoUpload}
+                                                                            disabled={isUploadingGameLogo}
+                                                                        />
+                                                                    </label>
+                                                                </div>
+                                                                <p className="text-[11px] text-gray-500 mt-2">Supports SVG or ICO for crisp small icons; PNG/JPG/WEBP also accepted.</p>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Secondary Banner URL</label>
+                                                                <input type="text" value={activeEvent.banner || ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { banner: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" placeholder="https://..." />
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="bg-[#111] p-8 rounded-xl border border-white/10 grid grid-cols-2 gap-8"><div className="col-span-2 md:col-span-1"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Tournament Title</label><input type="text" value={activeEvent.title} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { title: e.target.value })} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" /></div><div className="col-span-2 md:col-span-1"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Game Title</label><input type="text" value={activeEvent.game} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { game: e.target.value })} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" /></div></div>
+
+                                            <div className="bg-[#111] p-8 rounded-xl border border-white/10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Start Date & Time</label>
+                                                    <input type="datetime-local" value={activeEvent.startDate ? activeEvent.startDate.slice(0,16) : ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { startDate: e.target.value ? new Date(e.target.value).toISOString() : null })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Format</label>
+                                                    <input type="text" value={activeEvent.format || activeEvent.details.format} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { format: e.target.value, details: { ...activeEvent.details, format: e.target.value } })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Entry Fee</label>
+                                                    <input type="number" step="0.01" value={activeEvent.entryFee ?? ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { entryFee: e.target.value === '' ? null : parseFloat(e.target.value) })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-bold text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                        <Clock size={16} className="animate-pulse" />
+                                                        Tournament Countdown Timer
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={(() => {
+                                                                if (!activeEvent.countdownEnd) return '';
+                                                                // Convert ISO string to local datetime-local format (YYYY-MM-DDTHH:mm)
+                                                                const date = new Date(activeEvent.countdownEnd);
+                                                                const year = date.getFullYear();
+                                                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                                                const day = String(date.getDate()).padStart(2, '0');
+                                                                const hours = String(date.getHours()).padStart(2, '0');
+                                                                const minutes = String(date.getMinutes()).padStart(2, '0');
+                                                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                                                            })()}
+                                                            onChange={(e) => {
+                                                                if (updateEvent && e.target.value) {
+                                                                    // Convert local datetime-local value to ISO string preserving local time
+                                                                    const localDateTime = e.target.value; // Format: "2026-01-06T08:00"
+                                                                    const date = new Date(localDateTime);
+                                                                    const isoString = date.toISOString();
+                                                                    updateEvent(activeEvent.id, { countdownEnd: isoString });
+                                                                    console.log('🔔 Countdown updated:', {
+                                                                        local: localDateTime,
+                                                                        iso: isoString,
+                                                                        display: date.toLocaleString()
+                                                                    });
+                                                                } else if (updateEvent && !e.target.value) {
+                                                                    updateEvent(activeEvent.id, { countdownEnd: null });
+                                                                }
+                                                            }}
+                                                            className="w-full bg-gradient-to-r from-purple-900/20 to-black border-2 border-purple-500/50 hover:border-purple-400 text-white p-5 rounded-xl text-lg font-bold cursor-pointer focus:border-purple-400 focus:ring-4 focus:ring-purple-500/30 outline-none transition-all shadow-lg hover:shadow-purple-500/20"
+                                                            style={{ colorScheme: 'dark' }}
+                                                        />
+                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                            <Calendar size={24} className="text-purple-400" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-3 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                                                        <p className="text-xs text-purple-300 font-medium flex items-center gap-2">
+                                                            <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
+                                                            Click the input above to open the calendar and time picker
+                                                        </p>
+                                                        <p className="text-xs text-gray-400 mt-1 ml-4">
+                                                            Changes sync instantly across all devices • Updates live countdown on tournament page
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Global Seed</label>
+                                                    <input type="number" value={activeEvent.globalSeed ?? ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { globalSeed: e.target.value === '' ? null : parseInt(e.target.value) })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Mode Wins</label>
+                                                        <input type="number" value={activeEvent.modeWins ?? 0} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { modeWins: parseInt(e.target.value) || 0 })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Mode Losses</label>
+                                                        <input type="number" value={activeEvent.modeLosses ?? 0} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { modeLosses: parseInt(e.target.value) || 0 })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Available Slots</label>
+                                                        <input type="number" value={activeEvent.availableSlots ?? ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { availableSlots: e.target.value === '' ? null : parseInt(e.target.value) })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Confirmed Slots</label>
+                                                        <input type="number" value={activeEvent.confirmedSlots ?? ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { confirmedSlots: e.target.value === '' ? null : parseInt(e.target.value) })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg text-sm focus:border-purple-500 outline-none" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3 col-span-1 md:col-span-2 lg:col-span-3">
+                                                    <input id="match-history" type="checkbox" checked={!!activeEvent.matchHistorySynced} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { matchHistorySynced: e.target.checked })} className="w-4 h-4" />
+                                                    <label htmlFor="match-history" className="text-xs font-bold text-gray-400 uppercase tracking-widest">Match history synced</label>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-[#1a0c0c] p-8 rounded-xl border border-red-500/40">
+                                                <h4 className="text-sm font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2"><X size={16}/> Danger Zone</h4>
+                                                <p className="text-xs text-gray-500 mb-4">Deleting this event removes its matches and bracket data. This action cannot be undone.</p>
+                                                <button
+                                                    onClick={handleDeleteEvent}
+                                                    className="bg-red-600 hover:bg-red-500 text-white font-bold px-6 py-3 rounded-lg uppercase tracking-widest text-sm"
+                                                >
+                                                    Delete Event
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
 
@@ -1442,10 +1738,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">Registration Status</h4>
                                                 <div className="flex gap-6">
                                                     {['Open', 'Pending', 'Closed'].map((s) => (
-                                                        <button key={s} onClick={() => updateEventDetail('status', s)} className={`px-8 py-4 rounded border text-sm font-bold uppercase tracking-wider transition-all ${activeEvent.details.status === s ? (s==='Open'?'bg-yellow-900/20 border-yellow-500 text-yellow-500': (s==='Pending' ? 'bg-orange-900/20 border-orange-500 text-orange-500' : 'bg-red-900/20 border-red-500 text-red-500')) : 'bg-black border-white/10 text-gray-500'}`}>
+                                                        <button key={s} onClick={() => updateEvent && updateEvent(activeEvent.id, { statusRegistration: s, details: { ...activeEvent.details, status: s } })} className={`px-8 py-4 rounded border text-sm font-bold uppercase tracking-wider transition-all ${(activeEvent.statusRegistration || activeEvent.details.status) === s ? (s==='Open'?'bg-yellow-900/20 border-yellow-500 text-yellow-500': (s==='Pending' ? 'bg-orange-900/20 border-orange-500 text-orange-500' : 'bg-red-900/20 border-red-500 text-red-500')) : 'bg-black border-white/10 text-gray-500'}`}>
                                                             {s}
                                                         </button>
                                                     ))}
+                                                </div>
+                                                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Confirmation Status</label>
+                                                        <select value={activeEvent.statusConfirmation || ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { statusConfirmation: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded text-sm focus:border-purple-500 outline-none">
+                                                            <option value="">Unset</option>
+                                                            <option value="pending">Pending</option>
+                                                            <option value="in-review">In Review</option>
+                                                            <option value="confirmed">Confirmed</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Seeding Status</label>
+                                                        <select value={activeEvent.statusSeeding || ''} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { statusSeeding: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded text-sm focus:border-purple-500 outline-none">
+                                                            <option value="">Unset</option>
+                                                            <option value="pending">Pending</option>
+                                                            <option value="processing">Processing</option>
+                                                            <option value="locked">Locked</option>
+                                                        </select>
+                                                    </div>
                                                 </div>
                                             </div>
                                             
@@ -1453,7 +1769,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Prize Pool</label><input type="text" value={activeEvent.details.prizePool} onChange={(e) => updateEventDetail('prizePool', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" /></div>
                                                 <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Entry Fee</label><input type="text" value={activeEvent.details.entryFee} onChange={(e) => updateEventDetail('entryFee', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" /></div>
                                                 <div className="col-span-2"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Brief / Description</label><textarea value={activeEvent.details.brief} onChange={(e) => updateEventDetail('brief', e.target.value)} className="w-full h-32 bg-black border border-white/20 text-white p-4 rounded-lg text-base focus:border-purple-500 outline-none resize-none" /></div>
-                                                <div className="col-span-2"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Rules (Comma Separated)</label><input type="text" value={activeEvent.details.rules.join(', ')} onChange={(e) => updateEventDetail('rules', e.target.value.split(',').map((s: string) => s.trim()))} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-base focus:border-purple-500 outline-none" /></div>
+                                                <div className="col-span-2"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Rules (Text)</label><textarea value={activeEvent.rulesText || activeEvent.details.rules.join(', ')} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { rulesText: e.target.value, details: { ...activeEvent.details, rules: e.target.value.split(/\r?\n|,/).map((s: string) => s.trim()).filter(Boolean) } })} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-base focus:border-purple-500 outline-none h-28 resize-none" placeholder="Add rules separated by new lines or commas" /></div>
                                                 <div className="col-span-2 pt-6 border-t border-white/5">
                                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Calendar size={14}/> Event Schedule (Countdown Target)</label>
                                                     <div className="grid grid-cols-4 gap-6">
@@ -1506,9 +1822,80 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <div key={m.id} className="bg-[#111] p-6 rounded-xl border border-white/10 flex flex-col gap-6 group hover:border-white/20 transition-colors">
                                                     <div className="flex justify-between items-center pb-4 border-b border-white/5">
                                                         <div className="flex items-center gap-4"><div className="bg-white/5 px-3 py-1.5 rounded text-xs font-mono font-bold text-gray-400">MATCH {m.id}</div><span className="text-sm text-gray-500 font-bold uppercase">Round {m.round}</span></div>
-                                                        <div className="flex gap-3">{['scheduled', 'live', 'completed'].map(status => (<button key={status} onClick={() => updateMatchStatus(activeEvent.id, m.id, status as Match['status'])} className={`px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-colors border ${m.status === status ? (status === 'live' ? 'bg-red-900/30 border-red-500 text-red-400' : (status === 'completed' ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-gray-800 border-gray-600 text-white')) : 'bg-transparent border-transparent text-gray-600 hover:text-gray-400'}`}>{status}</button>))}</div>
+                                                        <div className="flex gap-3">{['scheduled', 'live', 'completed'].map(status => (<button key={status} onClick={() => updateMatchResult(activeEvent.id, m.id, { status: status as Match['status'] })} className={`px-4 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition-colors border ${m.status === status ? (status === 'live' ? 'bg-red-900/30 border-red-500 text-red-400' : (status === 'completed' ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-gray-800 border-gray-600 text-white')) : 'bg-transparent border-transparent text-gray-600 hover:text-gray-400'}`}>{status}</button>))}</div>
                                                     </div>
-                                                    <div className="flex items-center justify-between gap-6"><div className="flex-1 bg-black/40 p-4 rounded-lg border border-white/5 flex justify-between items-center"><span className="font-bold text-white text-lg">{teams[m.teamA]?.name || m.teamA}</span><span className="text-sm font-mono text-gray-500">TEAM A</span></div><div className="text-gray-600 font-black font-cyber text-2xl">VS</div><div className="flex-1 bg-black/40 p-4 rounded-lg border border-white/5 flex justify-between items-center"><span className="text-sm font-mono text-gray-500">TEAM B</span><span className="font-bold text-white text-lg">{teams[m.teamB]?.name || m.teamB}</span></div></div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="bg-black/40 p-4 rounded-lg border border-white/5 space-y-3">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-bold text-white text-lg">{teams[m.teamA]?.name || m.teamA}</span>
+                                                                <span className="text-xs text-gray-500 font-mono">TEAM A</span>
+                                                            </div>
+                                                            <input
+                                                                type="number"
+                                                                value={m.scoreA ?? ''}
+                                                                placeholder="Score"
+                                                                onChange={(e) => updateMatchResult(activeEvent.id, m.id, { scoreA: e.target.value === '' ? null : parseInt(e.target.value) })}
+                                                                className="w-full bg-black border border-white/20 text-center text-white rounded p-3 text-sm font-mono focus:border-purple-500 outline-none"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={m.teamALogo || ''}
+                                                                placeholder="Team A Logo URL"
+                                                                onChange={(e) => updateMatchResult(activeEvent.id, m.id, { teamALogo: e.target.value })}
+                                                                className="w-full bg-black border border-white/15 text-white p-3 rounded text-sm focus:border-purple-500 outline-none"
+                                                            />
+                                                        </div>
+
+                                                        <div className="bg-black/40 p-4 rounded-lg border border-white/5 space-y-3">
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="text-xs text-gray-500 font-mono">TEAM B</span>
+                                                                <span className="font-bold text-white text-lg">{teams[m.teamB]?.name || m.teamB}</span>
+                                                            </div>
+                                                            <input
+                                                                type="number"
+                                                                value={m.scoreB ?? ''}
+                                                                placeholder="Score"
+                                                                onChange={(e) => updateMatchResult(activeEvent.id, m.id, { scoreB: e.target.value === '' ? null : parseInt(e.target.value) })}
+                                                                className="w-full bg-black border border-white/20 text-center text-white rounded p-3 text-sm font-mono focus:border-cyan-500 outline-none"
+                                                            />
+                                                            <input
+                                                                type="text"
+                                                                value={m.teamBLogo || ''}
+                                                                placeholder="Team B Logo URL"
+                                                                onChange={(e) => updateMatchResult(activeEvent.id, m.id, { teamBLogo: e.target.value })}
+                                                                className="w-full bg-black border border-white/15 text-white p-3 rounded text-sm focus:border-cyan-500 outline-none"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Winner</label>
+                                                            <select
+                                                                value={m.winnerId || ''}
+                                                                onChange={(e) => updateMatchResult(activeEvent.id, m.id, { winnerId: e.target.value || null })}
+                                                                className="w-full bg-black border border-white/20 text-white p-3 rounded text-sm focus:border-purple-500 outline-none"
+                                                            >
+                                                                <option value="">None</option>
+                                                                <option value={m.teamA}>{teams[m.teamA]?.name || m.teamA}</option>
+                                                                <option value={m.teamB}>{teams[m.teamB]?.name || m.teamB}</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between gap-6">
+                                                        <div className="flex-1 bg-black/40 p-4 rounded-lg border border-white/5 flex justify-between items-center">
+                                                            <span className="font-bold text-white text-lg">{teams[m.teamA]?.name || m.teamA}</span>
+                                                            <span className="text-sm font-mono text-gray-500">TEAM A</span>
+                                                        </div>
+                                                        <div className="text-gray-600 font-black font-cyber text-2xl">VS</div>
+                                                        <div className="flex-1 bg-black/40 p-4 rounded-lg border border-white/5 flex justify-between items-center">
+                                                            <span className="text-sm font-mono text-gray-500">TEAM B</span>
+                                                            <span className="font-bold text-white text-lg">{teams[m.teamB]?.name || m.teamB}</span>
+                                                        </div>
+                                                    </div>
+
                                                     <StreamEditor match={m} eventId={activeEvent.id} onSave={updateMatchStream} />
                                                 </div>
                                             ))}

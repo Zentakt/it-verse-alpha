@@ -129,6 +129,51 @@ const App: React.FC = () => {
       }
   ]);
 
+  // Map raw DB rows (snake_case) into the GameEvent shape for fallback fetches
+  const mapDbEventRowToGameEvent = (e: any): GameEvent => {
+    const rulesText = e.rules || '';
+    const rulesArray = rulesText ? rulesText.split(/\r?\n|,/).map((r: string) => r.trim()).filter(Boolean) : [];
+    const entryFeeNumber = e.entry_fee !== null && e.entry_fee !== undefined ? Number(e.entry_fee) : null;
+    return {
+      id: e.id,
+      title: e.title,
+      game: e.game,
+      shortName: e.short_name,
+      image: e.image,
+      description: e.description || '',
+      bracketType: e.bracket_type || 'single',
+      status: e.status,
+      matches: [],
+      bracket: [],
+      gameLogo: e.game_logo,
+      banner: e.banner,
+      startDate: e.start_date,
+      format: e.format,
+      entryFee: entryFeeNumber,
+      countdownEnd: e.countdown_end,
+      globalSeed: e.global_seed,
+      modeWins: e.mode_wins,
+      modeLosses: e.mode_losses,
+      matchHistorySynced: e.match_history_synced,
+      statusRegistration: e.status_registration,
+      statusConfirmation: e.status_confirmation,
+      statusSeeding: e.status_seeding,
+      rulesText,
+      availableSlots: e.available_slots,
+      confirmedSlots: e.confirmed_slots,
+      details: {
+        status: e.status_registration || 'Open',
+        prizePool: '? 100,000',
+        entryFee: entryFeeNumber !== null ? `${entryFeeNumber}` : 'FREE',
+        format: e.format || '5v5',
+        brief: e.description || '',
+        rules: rulesArray,
+        schedule: { day: '00', hour: '00', min: '00', sec: '00' }
+      },
+      teamRecord: { wins: e.mode_wins || 0, losses: e.mode_losses || 0 }
+    } as GameEvent;
+  };
+
   const handleCountdownUpdate = async (date: string) => {
     // Just update the countdown end time, don't change torch state
     // If torch is already lit, it stays lit
@@ -140,6 +185,9 @@ const App: React.FC = () => {
     // Save to database
     try {
       await axios.post(`${API_URL}/countdown`, { countdown_end: date });
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'app_state_updated', data: { countdownEnd: date } }));
+      }
     } catch (error) {
       console.error('Failed to update countdown:', error);
     }
@@ -162,6 +210,13 @@ const App: React.FC = () => {
 
 // Fetch initial data from backend and set up real-time sync with WebSocket
   useEffect(() => {
+    // Load username from localStorage on initial load (client-based)
+    const savedUsername = localStorage.getItem('iteverse_username');
+    if (savedUsername) {
+      setUserProfile(prev => ({ ...prev, username: savedUsername }));
+      console.log('✅ Loaded username from localStorage:', savedUsername);
+    }
+    
     // Initialize WebSocket for true real-time updates
     const initializeWebSocket = () => {
       try {
@@ -199,6 +254,16 @@ const App: React.FC = () => {
             if (message.type === 'app_state_updated') {
               setAppState(prev => ({ ...prev, ...message.data }));
               console.log('✅ App state updated via WebSocket');
+            }
+            
+            // Handle viewer username updates (real-time sync across devices)
+            if (message.type === 'viewer_username_updated') {
+              // Only update if we don't have a local username set
+              const localUsername = localStorage.getItem('iteverse_username');
+              if (!localUsername && message.data.viewer_username) {
+                setUserProfile(prev => ({ ...prev, username: message.data.viewer_username }));
+                console.log('✅ Viewer username synced via WebSocket:', message.data.viewer_username);
+              }
             }
           } catch (err) {
             console.error('Error processing WebSocket message:', err);
@@ -267,6 +332,13 @@ const App: React.FC = () => {
               countdownEnd: syncData.appState.countdown_end || prev.countdownEnd,
               isTorchLit: syncData.appState.is_torch_lit || prev.isTorchLit
             }));
+            
+            // Sync viewer_username from database if no local username exists
+            const localUsername = localStorage.getItem('iteverse_username');
+            if (syncData.appState.viewer_username && !localUsername) {
+              setUserProfile(prev => ({ ...prev, username: syncData.appState.viewer_username }));
+              console.log('✅ Synced viewer username from DB:', syncData.appState.viewer_username);
+            }
           }
           
           if (isInitial) {
@@ -313,7 +385,7 @@ const App: React.FC = () => {
 
         setTeams(teamsObj);
         saveTeamsToLocalStorage(teamsObj); // Persist to localStorage
-        setEvents(eventsRes.data);
+        setEvents((eventsRes.data || []).map(mapDbEventRowToGameEvent));
 
         // Load challenges from database if available
         if (challengesRes.data && challengesRes.data.length > 0) {
@@ -396,7 +468,23 @@ const App: React.FC = () => {
     }, 2000);
   };
 
-  const handleTeamSelect = (teamId: string) => {
+  const handleTeamSelect = async (teamId: string, username: string) => {
+    // Update username in profile
+    setUserProfile(prev => ({ ...prev, username }));
+    // Store in localStorage for persistence (client-based)
+    localStorage.setItem('iteverse_username', username);
+    
+    // Sync username to database for real-time display
+    try {
+      await axios.post(`${API_URL}/app-state`, {
+        selected_team_id: teamId,
+        viewer_username: username
+      });
+      console.log('✅ Username synced to database:', username);
+    } catch (err) {
+      console.warn('Failed to sync username to database:', err);
+    }
+    
     // Force reset to 'games' view and instant scroll to top
     setAppState(prev => ({ ...prev, selectedTeamId: teamId, currentView: 'games' }));
     
@@ -417,6 +505,12 @@ const App: React.FC = () => {
     setAppState(prev => ({ ...prev, currentView: view }));
     // Optional: Scroll to top on nav change
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Return to team selection (TeamLore)
+  const handleReturnToTeamSelect = () => {
+    setAppState(prev => ({ ...prev, selectedTeamId: null }));
+    window.scrollTo(0, 0);
   };
 
   const handleLogin = (username: string, isAdmin: boolean) => {
@@ -469,6 +563,43 @@ const App: React.FC = () => {
     }
   };
 
+  const updateMatchResult = async (
+    eventId: string,
+    matchId: string,
+    data: Partial<{ status: Match['status']; scoreA: number | null; scoreB: number | null; winnerId?: string | null; teamALogo?: string; teamBLogo?: string }>
+  ) => {
+    setEvents(prevEvents => prevEvents.map(evt => {
+      if (evt.id !== eventId) return evt;
+      return {
+        ...evt,
+        matches: evt.matches.map(m => m.id === matchId ? {
+          ...m,
+          status: data.status ?? m.status,
+          scoreA: data.scoreA ?? m.scoreA,
+          scoreB: data.scoreB ?? m.scoreB,
+          winnerId: data.winnerId ?? m.winnerId,
+          teamALogo: data.teamALogo ?? m.teamALogo,
+          teamBLogo: data.teamBLogo ?? m.teamBLogo,
+        } : m)
+      };
+    }));
+
+    const payload: any = {};
+    if (data.status !== undefined) payload.status = data.status;
+    if (data.scoreA !== undefined) payload.score_a = data.scoreA;
+    if (data.scoreB !== undefined) payload.score_b = data.scoreB;
+    if (data.winnerId !== undefined) payload.winner_id = data.winnerId;
+    if (data.teamALogo !== undefined) payload.team_a_logo = data.teamALogo;
+    if (data.teamBLogo !== undefined) payload.team_b_logo = data.teamBLogo;
+
+    try {
+      await axios.put(`${API_URL}/events/${eventId}/matches/${matchId}`, payload);
+      console.log(`Match ${matchId} updated`, payload);
+    } catch (error) {
+      console.error('Failed to persist match result:', error);
+    }
+  };
+
   const updateEvent = async (eventId: string, updates: Partial<GameEvent> | any) => {
       // Update local state immediately
       setEvents(prevEvents => prevEvents.map(evt => {
@@ -483,7 +614,24 @@ const App: React.FC = () => {
       
       // Persist to database
       try {
-          await axios.put(`${API_URL}/events/${eventId}`, updates);
+        const payload: any = { ...updates };
+        if (updates.gameLogo !== undefined) payload.game_logo = updates.gameLogo;
+        if (updates.banner !== undefined) payload.banner = updates.banner;
+        if (updates.startDate !== undefined) payload.start_date = updates.startDate;
+        if (updates.format !== undefined) payload.format = updates.format;
+        if (updates.entryFee !== undefined) payload.entry_fee = updates.entryFee;
+        if (updates.countdownEnd !== undefined) payload.countdown_end = updates.countdownEnd;
+        if (updates.globalSeed !== undefined) payload.global_seed = updates.globalSeed;
+        if (updates.modeWins !== undefined) payload.mode_wins = updates.modeWins;
+        if (updates.modeLosses !== undefined) payload.mode_losses = updates.modeLosses;
+        if (updates.matchHistorySynced !== undefined) payload.match_history_synced = updates.matchHistorySynced;
+        if (updates.statusRegistration !== undefined) payload.status_registration = updates.statusRegistration;
+        if (updates.statusConfirmation !== undefined) payload.status_confirmation = updates.statusConfirmation;
+        if (updates.statusSeeding !== undefined) payload.status_seeding = updates.statusSeeding;
+        if (updates.rulesText !== undefined) payload.rules = updates.rulesText;
+        if (updates.availableSlots !== undefined) payload.available_slots = updates.availableSlots;
+        if (updates.confirmedSlots !== undefined) payload.confirmed_slots = updates.confirmedSlots;
+        await axios.put(`${API_URL}/events/${eventId}`, payload);
           console.log(`✅ Event ${eventId} updated:`, updates);
           
           // Broadcast update to all connected users via WebSocket if available
@@ -690,6 +838,7 @@ const App: React.FC = () => {
       
       // Update local state
       setEvents(prev => prev.filter(e => e.id !== eventId));
+      setSelectedEvent(prev => (prev?.id === eventId ? null : prev));
       
       console.log(`Event ${eventId} deleted successfully`);
     } catch (error) {
@@ -826,6 +975,7 @@ const App: React.FC = () => {
               updateCountdown={handleCountdownUpdate}
               updateMatchStatus={updateMatchStatus}
               updateMatchStream={updateMatchStream}
+              updateMatchResult={updateMatchResult}
               updateEvent={updateEvent}
               updateTeam={updateTeam}
               updateTeamPoints={updateTeamPoints}
@@ -880,6 +1030,7 @@ const App: React.FC = () => {
                     userProfile={userProfile}
                     currentView={appState.currentView}
                     onNavigate={handleNavigate}
+                    onLogoClick={handleReturnToTeamSelect}
                 >
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
                         {appState.currentView === 'games' && (

@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useMemo, useLayoutEffect } from 're
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { Team } from '../types';
-import { Shield, Zap, Cpu, Code2, Terminal, Database } from 'lucide-react';
+import { Shield, Zap, Cpu, Code2, Terminal, Database, User, X, Sparkles } from 'lucide-react';
 import FactionEntryTransition from './FactionEntryTransition';
 
 // --- FLAVOR TEXT & PHYSICS DATA ---
@@ -302,8 +302,8 @@ const StatsVisualizer: React.FC<{ teamId: string, stats: any[], color: string }>
 };
 
 interface TeamLoreProps {
-  onSelect: (teamId: string) => void;
-  teams: Record<string, Team>; // Added Prop
+  onSelect: (teamId: string, username: string) => void;
+  teams: Record<string, Team>;
 }
 
 const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
@@ -313,18 +313,78 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
   const [transitioningTeam, setTransitioningTeam] = useState<string | null>(null);
   const activeTeamRef = useRef<string>('t1');
   
+  // Username modal state
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
+  const [username, setUsername] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const usernameInputRef = useRef<HTMLInputElement>(null);
+  
   const scrollSpeedRef = useRef(0);
   const lastScrollPos = useRef(0);
   const mousePos = useRef(new THREE.Vector2(0.5, 0.5));
   const timeRef = useRef(0);
 
+  // Check for existing username in localStorage
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('iteverse_username');
+    if (savedUsername) {
+      setUsername(savedUsername);
+    }
+  }, []);
+
+  // Focus input when modal opens
+  useEffect(() => {
+    if (showUsernameModal && usernameInputRef.current) {
+      setTimeout(() => usernameInputRef.current?.focus(), 100);
+    }
+  }, [showUsernameModal]);
+
   const handleInitialize = (teamId: string) => {
+    // Check if username already exists in localStorage
+    const savedUsername = localStorage.getItem('iteverse_username');
+    if (savedUsername) {
+      // Skip modal, use saved username
+      setUsername(savedUsername);
       setTransitioningTeam(teamId);
+    } else {
+      // Show username modal first
+      setPendingTeamId(teamId);
+      setShowUsernameModal(true);
+    }
+  };
+
+  const handleUsernameSubmit = () => {
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length < 2) {
+      setUsernameError('Username must be at least 2 characters');
+      return;
+    }
+    if (trimmedUsername.length > 20) {
+      setUsernameError('Username must be 20 characters or less');
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      setUsernameError('Only letters, numbers, and underscores allowed');
+      return;
+    }
+    
+    // Save to localStorage (client-based)
+    localStorage.setItem('iteverse_username', trimmedUsername);
+    setUsernameError('');
+    setShowUsernameModal(false);
+    
+    // Now trigger the team transition
+    if (pendingTeamId) {
+      setTransitioningTeam(pendingTeamId);
+      setPendingTeamId(null);
+    }
   };
 
   const handleTransitionComplete = () => {
       if (transitioningTeam) {
-          onSelect(transitioningTeam);
+          const finalUsername = localStorage.getItem('iteverse_username') || username || 'Agent';
+          onSelect(transitioningTeam, finalUsername);
       }
   };
 
@@ -552,6 +612,85 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
                  <span className="font-mono text-[10px] tracking-widest text-gray-600">END OF RECORD</span>
             </div>
         </div>
+
+        {/* USERNAME MODAL - Shows before team selection */}
+        {showUsernameModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="relative w-full max-w-md mx-4 bg-gradient-to-br from-[#0a0a12] to-[#12121a] border border-white/10 rounded-2xl shadow-[0_0_100px_rgba(124,58,237,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
+              {/* Glow effect */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-purple-500/20 blur-[80px] rounded-full"></div>
+              
+              {/* Close button */}
+              <button 
+                onClick={() => { setShowUsernameModal(false); setPendingTeamId(null); }}
+                className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white hover:bg-white/10 rounded-lg transition-all z-10"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="relative p-8 space-y-6">
+                {/* Header */}
+                <div className="text-center space-y-2">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-purple-600/20 to-cyan-600/20 border border-purple-500/30 mb-4">
+                    <User size={32} className="text-purple-400" />
+                  </div>
+                  <h2 className="text-2xl font-black font-cyber text-white tracking-wide">
+                    AGENT IDENTIFICATION
+                  </h2>
+                  <p className="text-sm text-gray-400 font-mono">
+                    Enter your callsign to join the faction
+                  </p>
+                </div>
+
+                {/* Username Input */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    Username / Callsign
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={usernameInputRef}
+                      type="text"
+                      value={username}
+                      onChange={(e) => { setUsername(e.target.value); setUsernameError(''); }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleUsernameSubmit()}
+                      placeholder="Enter your username..."
+                      maxLength={20}
+                      className="w-full bg-black/50 border-2 border-purple-500/30 hover:border-purple-500/50 focus:border-purple-500 text-white text-lg font-bold p-4 pl-12 rounded-xl outline-none transition-all placeholder:text-gray-600"
+                    />
+                    <User size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-500/50" />
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500 font-mono">
+                      {username.length}/20
+                    </div>
+                  </div>
+                  {usernameError && (
+                    <p className="text-xs text-red-400 font-mono animate-in slide-in-from-top-1 duration-200">
+                      ⚠ {usernameError}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-gray-600 font-mono">
+                    Letters, numbers, and underscores only • 2-20 characters
+                  </p>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  onClick={handleUsernameSubmit}
+                  disabled={username.trim().length < 2}
+                  className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 disabled:from-gray-700 disabled:to-gray-600 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl uppercase tracking-widest text-sm transition-all duration-300 shadow-lg hover:shadow-purple-500/30 group"
+                >
+                  <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
+                  <span>Initialize Agent</span>
+                </button>
+
+                {/* Info text */}
+                <p className="text-center text-[10px] text-gray-500 font-mono">
+                  Your username will be displayed on the dashboard • Stored locally on this device
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };

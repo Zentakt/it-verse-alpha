@@ -34,7 +34,27 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const allowedMimeTypes = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'image/svg+xml',
+  'image/x-icon',
+  'image/vnd.microsoft.icon'
+];
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Use png/jpg/webp/gif/svg/ico'));
+    }
+  }
+});
 
 // Database connection pool
 const pool = new Pool({
@@ -77,11 +97,34 @@ app.get('/api/app-state', async (req, res) => {
 // Update app state
 app.post('/api/app-state', async (req, res) => {
   try {
-    const { countdown_end, is_torch_lit, is_torch_auto_lit, selected_team_id, current_view } = req.body;
+    const { countdown_end, is_torch_lit, is_torch_auto_lit, selected_team_id, current_view, viewer_username } = req.body;
+    
+    // If viewer_username is provided, update the existing record instead of inserting
+    if (viewer_username !== undefined) {
+      const updateResult = await pool.query(
+        `UPDATE app_state 
+         SET selected_team_id = COALESCE($1, selected_team_id),
+             viewer_username = $2
+         WHERE id = (SELECT id FROM app_state ORDER BY updated_at DESC LIMIT 1) 
+         RETURNING *`,
+        [selected_team_id, viewer_username]
+      );
+      
+      if (updateResult.rows.length > 0) {
+        // Broadcast username update via WebSocket
+        broadcastToClients({ 
+          type: 'viewer_username_updated', 
+          data: { viewer_username, selected_team_id } 
+        });
+        console.log('✅ Viewer username updated:', viewer_username);
+        return res.json(updateResult.rows[0]);
+      }
+    }
+    
     const result = await pool.query(
-      `INSERT INTO app_state (countdown_end, is_torch_lit, is_torch_auto_lit, selected_team_id, current_view)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [countdown_end, is_torch_lit, is_torch_auto_lit, selected_team_id, current_view]
+      `INSERT INTO app_state (countdown_end, is_torch_lit, is_torch_auto_lit, selected_team_id, current_view, viewer_username)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [countdown_end, is_torch_lit, is_torch_auto_lit, selected_team_id, current_view, viewer_username]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -232,27 +275,84 @@ app.put('/api/teams/:teamId', async (req, res) => {
 
 // ===== EVENTS UPDATE ENDPOINTS =====
 
-// Update event info
+// Update event info (supports camelCase + snake_case payloads)
 app.put('/api/events/:eventId', async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { title, game, description, image, short_name, details } = req.body;
-    
+    const {
+      title, game, description, image, short_name, shortName, details,
+      game_logo, gameLogo, banner,
+      start_date, startDate, format,
+      entry_fee, entryFee,
+      countdown_end, countdownEnd,
+      global_seed, globalSeed,
+      mode_wins, modeWins,
+      mode_losses, modeLosses,
+      match_history_synced, matchHistorySynced,
+      status_registration, statusRegistration,
+      status_confirmation, statusConfirmation,
+      status_seeding, statusSeeding,
+      rules, rulesText,
+      available_slots, availableSlots,
+      confirmed_slots, confirmedSlots,
+      bracket_type, status
+    } = req.body;
+
+    const normalized = {
+      short_name: shortName ?? short_name,
+      game_logo: gameLogo ?? game_logo,
+      banner,
+      start_date: startDate ?? start_date,
+      format,
+      entry_fee: entryFee ?? entry_fee,
+      countdown_end: countdownEnd ?? countdown_end,
+      global_seed: globalSeed ?? global_seed,
+      mode_wins: modeWins ?? mode_wins,
+      mode_losses: modeLosses ?? mode_losses,
+      match_history_synced: matchHistorySynced ?? match_history_synced,
+      status_registration: statusRegistration ?? status_registration,
+      status_confirmation: statusConfirmation ?? status_confirmation,
+      status_seeding: statusSeeding ?? status_seeding,
+      rules: rulesText ?? rules,
+      available_slots: availableSlots ?? available_slots,
+      confirmed_slots: confirmedSlots ?? confirmed_slots,
+      bracket_type,
+      status,
+    };
+
     const updates = [];
     const values = [];
     let paramIndex = 1;
-    
-    if (title) { updates.push(`title = $${paramIndex++}`); values.push(title); }
-    if (game) { updates.push(`game = $${paramIndex++}`); values.push(game); }
-    if (description) { updates.push(`description = $${paramIndex++}`); values.push(description); }
-    if (image) { updates.push(`image = $${paramIndex++}`); values.push(image); }
-    if (short_name) { updates.push(`short_name = $${paramIndex++}`); values.push(short_name); }
-    if (details) { updates.push(`details = $${paramIndex++}`); values.push(JSON.stringify(details)); }
-    
+
+    if (title !== undefined) { updates.push(`title = $${paramIndex++}`); values.push(title); }
+    if (game !== undefined) { updates.push(`game = $${paramIndex++}`); values.push(game); }
+    if (description !== undefined) { updates.push(`description = $${paramIndex++}`); values.push(description); }
+    if (image !== undefined) { updates.push(`image = $${paramIndex++}`); values.push(image); }
+    if (normalized.short_name !== undefined) { updates.push(`short_name = $${paramIndex++}`); values.push(normalized.short_name); }
+    if (details !== undefined) { updates.push(`details = $${paramIndex++}`); values.push(JSON.stringify(details)); }
+    if (normalized.game_logo !== undefined) { updates.push(`game_logo = $${paramIndex++}`); values.push(normalized.game_logo); }
+    if (normalized.banner !== undefined) { updates.push(`banner = $${paramIndex++}`); values.push(normalized.banner); }
+    if (normalized.start_date !== undefined) { updates.push(`start_date = $${paramIndex++}`); values.push(normalized.start_date); }
+    if (normalized.format !== undefined) { updates.push(`format = $${paramIndex++}`); values.push(normalized.format); }
+    if (normalized.entry_fee !== undefined) { updates.push(`entry_fee = $${paramIndex++}`); values.push(normalized.entry_fee); }
+    if (normalized.countdown_end !== undefined) { updates.push(`countdown_end = $${paramIndex++}`); values.push(normalized.countdown_end); }
+    if (normalized.global_seed !== undefined) { updates.push(`global_seed = $${paramIndex++}`); values.push(normalized.global_seed); }
+    if (normalized.mode_wins !== undefined) { updates.push(`mode_wins = $${paramIndex++}`); values.push(normalized.mode_wins); }
+    if (normalized.mode_losses !== undefined) { updates.push(`mode_losses = $${paramIndex++}`); values.push(normalized.mode_losses); }
+    if (normalized.match_history_synced !== undefined) { updates.push(`match_history_synced = $${paramIndex++}`); values.push(normalized.match_history_synced); }
+    if (normalized.status_registration !== undefined) { updates.push(`status_registration = $${paramIndex++}`); values.push(normalized.status_registration); }
+    if (normalized.status_confirmation !== undefined) { updates.push(`status_confirmation = $${paramIndex++}`); values.push(normalized.status_confirmation); }
+    if (normalized.status_seeding !== undefined) { updates.push(`status_seeding = $${paramIndex++}`); values.push(normalized.status_seeding); }
+    if (normalized.rules !== undefined) { updates.push(`rules = $${paramIndex++}`); values.push(normalized.rules); }
+    if (normalized.available_slots !== undefined) { updates.push(`available_slots = $${paramIndex++}`); values.push(normalized.available_slots); }
+    if (normalized.confirmed_slots !== undefined) { updates.push(`confirmed_slots = $${paramIndex++}`); values.push(normalized.confirmed_slots); }
+    if (normalized.bracket_type !== undefined) { updates.push(`bracket_type = $${paramIndex++}`); values.push(normalized.bracket_type); }
+    if (normalized.status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(normalized.status); }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }
-    
+
     values.push(eventId);
     const result = await pool.query(
       `UPDATE events SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramIndex} RETURNING *`,
@@ -269,17 +369,19 @@ app.put('/api/events/:eventId', async (req, res) => {
 app.put('/api/events/:eventId/matches/:matchId', async (req, res) => {
   try {
     const { eventId, matchId } = req.params;
-    const { status, stream_url, score_a, score_b, winner_id } = req.body;
+    const { status, stream_url, score_a, score_b, winner_id, team_a_logo, team_b_logo } = req.body;
     
     const updates = [];
     const values = [];
     let paramIndex = 1;
     
-    if (status) { updates.push(`status = $${paramIndex++}`); values.push(status); }
+    if (status !== undefined) { updates.push(`status = $${paramIndex++}`); values.push(status); }
     if (stream_url !== undefined) { updates.push(`stream_url = $${paramIndex++}`); values.push(stream_url); }
     if (score_a !== undefined) { updates.push(`score_a = $${paramIndex++}`); values.push(score_a); }
     if (score_b !== undefined) { updates.push(`score_b = $${paramIndex++}`); values.push(score_b); }
-    if (winner_id) { updates.push(`winner_id = $${paramIndex++}`); values.push(winner_id); }
+    if (winner_id !== undefined) { updates.push(`winner_id = $${paramIndex++}`); values.push(winner_id); }
+    if (team_a_logo !== undefined) { updates.push(`team_a_logo = $${paramIndex++}`); values.push(team_a_logo); }
+    if (team_b_logo !== undefined) { updates.push(`team_b_logo = $${paramIndex++}`); values.push(team_b_logo); }
     
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -524,11 +626,57 @@ app.delete('/api/teams/:teamId', async (req, res) => {
 
 // ===== CRUD EVENTS =====
 app.post('/api/events', async (req, res) => {
-  const { id, title, game, short_name, image, description, bracket_type, status } = req.body;
+  const {
+    id, title, game, short_name, shortName, image, description, bracket_type, status,
+    game_logo, gameLogo, banner, start_date, startDate, format, entry_fee, entryFee,
+    countdown_end, countdownEnd, global_seed, globalSeed, mode_wins, modeWins,
+    mode_losses, modeLosses, match_history_synced, matchHistorySynced,
+    status_registration, statusRegistration, status_confirmation, statusConfirmation, status_seeding, statusSeeding,
+    rules, rulesText, available_slots, availableSlots, confirmed_slots, confirmedSlots
+  } = req.body;
+
   if (!id || !title) return res.status(400).json({ error: 'id and title required' });
+
+  const normalized = {
+    short_name: shortName ?? short_name,
+    game_logo: gameLogo ?? game_logo,
+    banner,
+    start_date: startDate ?? start_date,
+    format,
+    entry_fee: entryFee ?? entry_fee,
+    countdown_end: countdownEnd ?? countdown_end,
+    global_seed: globalSeed ?? global_seed,
+    mode_wins: modeWins ?? mode_wins,
+    mode_losses: modeLosses ?? mode_losses,
+    match_history_synced: matchHistorySynced ?? match_history_synced,
+    status_registration: statusRegistration ?? status_registration,
+    status_confirmation: statusConfirmation ?? status_confirmation,
+    status_seeding: statusSeeding ?? status_seeding,
+    rules: rulesText ?? rules,
+    available_slots: availableSlots ?? available_slots,
+    confirmed_slots: confirmedSlots ?? confirmed_slots,
+  };
+
   const result = await pool.query(
-    'INSERT INTO events (id, title, game, short_name, image, description, bracket_type, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-    [id, title, game || '', short_name || '', image || '', description || '', bracket_type || 'single', status || 'pending']
+    `INSERT INTO events (
+      id, title, game, short_name, image, description, bracket_type, status,
+      game_logo, banner, start_date, format, entry_fee, countdown_end, global_seed,
+      mode_wins, mode_losses, match_history_synced, status_registration, status_confirmation, status_seeding,
+      rules, available_slots, confirmed_slots
+    ) VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8,
+      $9, $10, $11, $12, $13, $14, $15,
+      $16, $17, $18, $19, $20, $21,
+      $22, $23, $24
+    ) RETURNING *`,
+    [
+      id, title, game || '', normalized.short_name || '', image || '', description || '', bracket_type || 'single', status || 'pending',
+      normalized.game_logo || null, normalized.banner || null, normalized.start_date || null, normalized.format || null,
+      normalized.entry_fee ?? null, normalized.countdown_end || null, normalized.global_seed ?? null,
+      normalized.mode_wins ?? 0, normalized.mode_losses ?? 0, normalized.match_history_synced ?? false,
+      normalized.status_registration || null, normalized.status_confirmation || null, normalized.status_seeding || null,
+      normalized.rules || null, normalized.available_slots ?? null, normalized.confirmed_slots ?? null
+    ]
   );
   res.status(201).json(result.rows[0]);
 });
@@ -563,15 +711,23 @@ app.get('/api/live-streams', async (req, res) => {
 });
 
 // Get live streams by placement (hero, recommended, previous)
+// Supports both legacy single placement and new multi-placement (comma-separated)
 app.get('/api/live-streams/placement/:placement', async (req, res) => {
   try {
     const { placement } = req.params;
     const result = await pool.query(`
       SELECT * FROM live_streams
-      WHERE placement = $1
+      WHERE placement LIKE $1
       ORDER BY created_at DESC
-    `, [placement]);
-    res.json(result.rows);
+    `, [`%${placement}%`]);
+    
+    // Parse placement to array
+    const streams = result.rows.map(stream => ({
+      ...stream,
+      placement: stream.placement ? stream.placement.split(',').map(p => p.trim()) : ['recommended']
+    }));
+    
+    res.json(streams);
   } catch (err) {
     console.error('Error fetching live streams by placement:', err);
     res.status(500).json({ error: 'Failed to fetch live streams' });
@@ -590,6 +746,9 @@ app.post('/api/live-streams', async (req, res) => {
       return res.status(400).json({ error: 'title and embed_url are required' });
     }
     
+    // Convert placement array to comma-separated string
+    const placementStr = Array.isArray(placement) ? placement.join(',') : (placement || 'recommended');
+    
     const result = await pool.query(`
       INSERT INTO live_streams 
         (id, title, description, embed_url, thumbnail_url, thumbnail_mode, 
@@ -598,12 +757,18 @@ app.post('/api/live-streams', async (req, res) => {
         (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), now())
       RETURNING *
     `, [title, description, embed_url, thumbnail_url, thumbnail_mode || 'upload', 
-        game_category, tournament_id, status || 'scheduled', placement || 'recommended', starts_at]);
+        game_category, tournament_id, status || 'scheduled', placementStr, starts_at]);
+    
+    // Parse placement back to array for response and broadcast
+    const streamData = {
+      ...result.rows[0],
+      placement: result.rows[0].placement ? result.rows[0].placement.split(',').map(p => p.trim()) : ['recommended']
+    };
     
     // Broadcast WebSocket event
-    broadcastToClients({ type: 'live_stream_created', data: result.rows[0] });
+    broadcastToClients({ type: 'live_stream_created', data: streamData });
     
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(streamData);
   } catch (err) {
     console.error('Error creating live stream:', err);
     res.status(500).json({ error: 'Failed to create live stream' });
@@ -618,6 +783,11 @@ app.put('/api/live-streams/:streamId', async (req, res) => {
       title, description, embed_url, thumbnail_url, thumbnail_mode,
       game_category, tournament_id, status, placement, starts_at, ended_at
     } = req.body;
+    
+    // Convert placement array to comma-separated string if provided
+    const placementStr = placement !== undefined 
+      ? (Array.isArray(placement) ? placement.join(',') : placement)
+      : undefined;
     
     const result = await pool.query(`
       UPDATE live_streams
@@ -637,16 +807,22 @@ app.put('/api/live-streams/:streamId', async (req, res) => {
       WHERE id = $12::uuid
       RETURNING *
     `, [title, description, embed_url, thumbnail_url, thumbnail_mode,
-        game_category, tournament_id, status, placement, starts_at, ended_at, streamId]);
+        game_category, tournament_id, status, placementStr, starts_at, ended_at, streamId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Live stream not found' });
     }
     
-    // Broadcast WebSocket event
-    broadcastToClients({ type: 'live_stream_updated', data: result.rows[0] });
+    // Parse placement back to array for response and broadcast
+    const streamData = {
+      ...result.rows[0],
+      placement: result.rows[0].placement ? result.rows[0].placement.split(',').map(p => p.trim()) : ['recommended']
+    };
     
-    res.json(result.rows[0]);
+    // Broadcast WebSocket event
+    broadcastToClients({ type: 'live_stream_updated', data: streamData });
+    
+    res.json(streamData);
   } catch (err) {
     console.error('Error updating live stream:', err);
     res.status(500).json({ error: 'Failed to update live stream' });
@@ -748,8 +924,18 @@ app.get('/api/sync', async (req, res) => {
     matches.rows.forEach(m => {
       if (!matchesByEvent[m.event_id]) matchesByEvent[m.event_id] = [];
       matchesByEvent[m.event_id].push({
-        id: m.id, teamA: m.team_a, teamB: m.team_b, scoreA: m.score_a, scoreB: m.score_b,
-        status: m.status, startTime: m.start_time, streamUrl: m.stream_url, round: m.round, winnerId: m.winner_id
+        id: m.id,
+        teamA: m.team_a,
+        teamB: m.team_b,
+        scoreA: m.score_a,
+        scoreB: m.score_b,
+        status: m.status,
+        startTime: m.start_time,
+        streamUrl: m.stream_url,
+        round: m.round,
+        winnerId: m.winner_id,
+        teamALogo: m.team_a_logo,
+        teamBLogo: m.team_b_logo,
       });
     });
     
@@ -763,13 +949,52 @@ app.get('/api/sync', async (req, res) => {
       });
     });
     
-    const eventsWithData = events.rows.map(e => ({
-      id: e.id, title: e.title, game: e.game, shortName: e.short_name, image: e.image,
-      description: e.description, bracketType: e.bracket_type, status: e.status,
-      matches: matchesByEvent[e.id] || [], bracket: bracketsByEvent[e.id] || [],
-      details: { status: 'Open', prizePool: '? 100,000', entryFee: 'FREE', format: '5v5', brief: e.description, rules: [], schedule: { day: '00', hour: '00', min: '00', sec: '00' } },
-      teamRecord: { wins: 0, losses: 0, note: '' }, organizer: { name: 'Admin', email: 'admin@iteverse.com' }
-    }));
+    const eventsWithData = events.rows.map(e => {
+      const rulesText = e.rules || '';
+      const rulesArray = rulesText
+        ? rulesText.split(/\r?\n|,/).map(r => r.trim()).filter(Boolean)
+        : [];
+      const entryFeeNumber = e.entry_fee !== null && e.entry_fee !== undefined ? Number(e.entry_fee) : null;
+      return {
+        id: e.id,
+        title: e.title,
+        game: e.game,
+        shortName: e.short_name,
+        image: e.image,
+        description: e.description,
+        bracketType: e.bracket_type,
+        status: e.status,
+        gameLogo: e.game_logo,
+        banner: e.banner,
+        startDate: e.start_date,
+        format: e.format,
+        entryFee: entryFeeNumber,
+        countdownEnd: e.countdown_end,
+        globalSeed: e.global_seed,
+        modeWins: e.mode_wins,
+        modeLosses: e.mode_losses,
+        matchHistorySynced: e.match_history_synced,
+        statusRegistration: e.status_registration,
+        statusConfirmation: e.status_confirmation,
+        statusSeeding: e.status_seeding,
+        rulesText,
+        availableSlots: e.available_slots,
+        confirmedSlots: e.confirmed_slots,
+        matches: matchesByEvent[e.id] || [],
+        bracket: bracketsByEvent[e.id] || [],
+        details: {
+          status: e.status_registration || 'Open',
+          prizePool: '? 100,000',
+          entryFee: entryFeeNumber !== null ? `${entryFeeNumber}` : 'FREE',
+          format: e.format || '5v5',
+          brief: e.description,
+          rules: rulesArray,
+          schedule: { day: '00', hour: '00', min: '00', sec: '00' }
+        },
+        teamRecord: { wins: e.mode_wins || 0, losses: e.mode_losses || 0, note: '' },
+        organizer: { name: 'Admin', email: 'admin@iteverse.com' }
+      };
+    });
     
     res.json({
       teams: teamsWithBreakdown, events: eventsWithData,
