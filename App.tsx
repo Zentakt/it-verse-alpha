@@ -19,7 +19,7 @@ import { AppState, GameEvent, Match, Team, UserProfile, Challenge } from './type
 import { INITIAL_EVENTS, TEAMS as INITIAL_TEAMS, INITIAL_PROFILE } from './constants';
 import confetti from 'canvas-confetti';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
 type IntroStage = 'loader' | 'portal' | 'content';
 
@@ -102,7 +102,7 @@ const App: React.FC = () => {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const SYNC_INTERVAL = 3000; // 3 seconds for real-time feel
-  const WS_URL = 'ws://localhost:5000/api/ws'; // WebSocket endpoint for true real-time
+  const WS_URL = `ws://${window.location.host}/api/ws`; // WebSocket endpoint for true real-time
   
   // Challenge State (Updated with Quiz and Valid Types)
   const [challenges, setChallenges] = useState<Challenge[]>([

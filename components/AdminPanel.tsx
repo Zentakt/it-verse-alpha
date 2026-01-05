@@ -325,7 +325,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       
       // Set up WebSocket listener for real-time updates
       try {
-        const ws = new WebSocket('ws://localhost:5000/api/ws');
+        const ws = new WebSocket(`ws://${window.location.host}/api/ws`);
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
@@ -348,7 +348,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const fetchLiveStreams = async () => {
     setIsLoadingStreams(true);
     try {
-      const response = await fetch('http://localhost:5000/api/live-streams');
+      const response = await fetch('/api/live-streams');
       if (response.ok) {
         const data = await response.json();
         setLiveStreams(data);
@@ -447,7 +447,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
       if (editingStreamId && editingStreamId !== 'new') {
         // Update existing stream
-        const response = await fetch(`http://localhost:5000/api/live-streams/${editingStreamId}`, {
+        const response = await fetch(`/api/live-streams/${editingStreamId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -463,7 +463,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         }
       } else {
         // Create new stream
-        const response = await fetch('http://localhost:5000/api/live-streams', {
+        const response = await fetch('/api/live-streams', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

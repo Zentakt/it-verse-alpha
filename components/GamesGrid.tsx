@@ -762,7 +762,7 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
     useEffect(() => {
         const fetchStreams = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/live-streams');
+                const response = await fetch('/api/live-streams');
                 if (response.ok) {
                     const data = await response.json();
                     setLiveStreams(data);
@@ -780,7 +780,7 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
         // Set up WebSocket listener for real-time updates
         let ws: WebSocket | null = null;
         try {
-            ws = new WebSocket('ws://localhost:5000/api/ws');
+            ws = new WebSocket(`ws://${window.location.host}/api/ws`);
             ws.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
