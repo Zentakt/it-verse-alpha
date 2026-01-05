@@ -1,4 +1,12 @@
 
+export interface TeamBreakdownItem {
+  source: string;
+  points: number;
+  comment?: string;
+  updatedBy?: string;
+  createdAt?: string;
+}
+
 export interface Team {
   id: string;
   name: string;
@@ -6,7 +14,7 @@ export interface Team {
   seed: number;
   description: string;
   color: string; // Hex for UI theming
-  breakdown: { source: string; points: number }[];
+  breakdown: TeamBreakdownItem[];
 }
 
 export interface Match {
@@ -52,6 +60,18 @@ export interface GameEvent {
   bracket: BracketMatch[]; // For the Visual Bracket
   bracketType: 'single' | 'double' | 'round-robin';
   details: TournamentDetails;
+  teamRecord?: {
+    wins: number;
+    losses: number;
+    draws?: number;
+    note?: string;
+  };
+  organizer?: {
+    name: string;
+    email: string;
+    discord?: string;
+    phone?: string;
+  };
 }
 
 export interface UserProfile {
@@ -59,6 +79,7 @@ export interface UserProfile {
   avatar: string;
   theme: 'cyber' | 'retro' | 'dark';
   badges: string[];
+  isAdmin: boolean;
 }
 
 export interface Challenge {
@@ -72,9 +93,36 @@ export interface Challenge {
     gameConfig?: any; // For custom sequences or card counts
 }
 
+export interface LiveStream {
+    id: string;
+    title: string;
+    description?: string;
+    embed_url: string;
+    thumbnail_url?: string;
+    thumbnail_mode: 'upload' | 'embed';
+    game_category?: string;
+    tournament_id?: string;
+    status: 'scheduled' | 'live' | 'ended';
+    placement: 'hero' | 'recommended' | 'previous';
+    starts_at?: string;
+    ended_at?: string;
+    created_at: string;
+    updated_at: string;
+    // Scoreboard data
+    team1_id?: string;
+    team1_name?: string;
+    team1_logo?: string;
+    team1_score?: number;
+    team2_id?: string;
+    team2_name?: string;
+    team2_logo?: string;
+    team2_score?: number;
+}
+
 export interface AppState {
   countdownEnd: string; // ISO String
   isTorchLit: boolean;
+  isTorchAutoLit: boolean; // Tracks if torch auto-lit from countdown (prevents animation repeat)
   selectedTeamId: string | null;
   currentView: 'games' | 'leaderboard' | 'scanner' | 'tournaments' | 'login';
 }

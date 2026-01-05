@@ -62,7 +62,14 @@ export const INITIAL_PROFILE: UserProfile = {
   username: 'Guest_001',
   avatar: 'https://picsum.photos/200/200?random=4',
   theme: 'cyber',
-  badges: ['Early Bird', 'Viewer']
+  badges: ['Early Bird', 'Viewer'],
+  isAdmin: false
+};
+
+// Admin credentials (in production, this should be server-side)
+export const ADMIN_CREDENTIALS = {
+  username: 'admin',
+  password: 'admin123'
 };
 
 export const INITIAL_BRACKET_DATA: any[] = []; // Deprecated, moved inside events
@@ -80,6 +87,8 @@ export const INITIAL_EVENTS: GameEvent[] = [
     matches: [
        { id: 'm1', teamA: 't1', teamB: 't3', scoreA: 1, scoreB: 2, status: 'completed', startTime: '2025-10-25T10:00:00Z', round: 1, winnerId: 't3' },
     ],
+    teamRecord: { wins: 2, losses: 0, note: 'Streak: 2 series wins' },
+    organizer: { name: 'Marcus Chen', email: 'marcus@esports.io', discord: 'MarcusML#2891', phone: '+1-555-0101' },
     details: {
         status: 'Open',
         prizePool: '₳ 1,250,000',
@@ -106,6 +115,8 @@ export const INITIAL_EVENTS: GameEvent[] = [
     matches: [
         { id: 'v1', teamA: 't2', teamB: 't4', scoreA: 13, scoreB: 11, status: 'live', startTime: '2025-10-26T15:00:00Z', streamUrl: 'https://www.youtube.com/embed/XSXEaikz0Bc', round: 1 },
     ],
+    teamRecord: { wins: 0, losses: 2, note: 'Needs rebound' },
+    organizer: { name: 'Sarah Blackwood', email: 'sarah.ops@valorant.esports', discord: 'SarahBlack#4521', phone: '+1-555-0102' },
     details: {
         status: 'Pending',
         prizePool: '₳ 2,000,000',
@@ -130,6 +141,8 @@ export const INITIAL_EVENTS: GameEvent[] = [
     description: '1v1 Combat Superiority.',
     bracketType: 'double',
     matches: [],
+    teamRecord: { wins: 1, losses: 1, draws: 0, note: 'Even footing' },
+    organizer: { name: 'Yuki Tanaka', email: 'yuki@fightmaster.jp', discord: 'YukiFight#7734', phone: '+81-90-1234-5678' },
     details: {
         status: 'Closed',
         prizePool: '₳ 500,000',
@@ -152,6 +165,8 @@ export const INITIAL_EVENTS: GameEvent[] = [
       description: 'Strategic domination.',
       bracketType: 'single',
       matches: [],
+      teamRecord: { wins: 3, losses: 0, note: 'Undefeated run' },
+      organizer: { name: 'Dmitri Petrov', email: 'dmitri@checkmate.io', discord: 'GrandMaster#9999', phone: '+7-495-123-4567' },
       details: {
         status: 'Open',
         prizePool: '₳ 100,000',

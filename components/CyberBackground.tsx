@@ -13,11 +13,24 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const starsRef = useRef<THREE.Points | null>(null);
   const nebulaRef = useRef<THREE.Points | null>(null);
+    const starGeoRef = useRef<THREE.BufferGeometry | null>(null);
+    const starMatRef = useRef<THREE.PointsMaterial | null>(null);
+    const nebulaGeoRef = useRef<THREE.BufferGeometry | null>(null);
+    const nebulaMatRef = useRef<THREE.PointsMaterial | null>(null);
+    const nebulaTextureRef = useRef<THREE.Texture | null>(null);
   const speedRef = useRef(0);
   const targetSpeedRef = useRef(0);
 
   useEffect(() => {
-    if (!mountRef.current) return;
+        if (!mountRef.current) return;
+
+        // Prevent spawning multiple contexts if React remounts the component.
+        if (rendererRef.current) {
+            if (!mountRef.current.contains(rendererRef.current.domElement)) {
+                mountRef.current.appendChild(rendererRef.current.domElement);
+            }
+            return;
+        }
 
     // --- SETUP ---
     const width = window.innerWidth;
@@ -66,6 +79,9 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
         sizeAttenuation: true
     });
 
+    starGeoRef.current = starGeo;
+    starMatRef.current = starMat;
+
     const stars = new THREE.Points(starGeo, starMat);
     scene.add(stars);
     starsRef.current = stars;
@@ -93,6 +109,7 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
         context.fillRect(0,0,32,32);
     }
     const texture = new THREE.CanvasTexture(canvas);
+    nebulaTextureRef.current = texture;
 
     const nebulaMat = new THREE.PointsMaterial({
         color: colorTheme,
@@ -103,6 +120,9 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
         blending: THREE.AdditiveBlending,
         depthWrite: false
     });
+
+    nebulaGeoRef.current = nebulaGeo;
+    nebulaMatRef.current = nebulaMat;
     
     const nebula = new THREE.Points(nebulaGeo, nebulaMat);
     scene.add(nebula);
@@ -156,7 +176,16 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
         if (mountRef.current && renderer.domElement) {
             mountRef.current.removeChild(renderer.domElement);
         }
+        // Dispose geometries, materials, and textures to release the context.
+        starGeoRef.current?.dispose();
+        starMatRef.current?.dispose();
+        nebulaGeoRef.current?.dispose();
+        nebulaMatRef.current?.dispose();
+        nebulaTextureRef.current?.dispose();
         renderer.dispose();
+        renderer.forceContextLoss();
+        renderer.domElement?.remove();
+        rendererRef.current = null;
     };
   }, []); // Init once
 

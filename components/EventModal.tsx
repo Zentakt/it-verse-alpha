@@ -15,11 +15,21 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
   useEffect(() => {
     if (event) {
       document.body.style.overflow = 'hidden';
+      
+      // ESC key handler
+      const handleEscape = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      window.addEventListener('keydown', handleEscape);
+      return () => {
+        document.body.style.overflow = 'auto';
+        window.removeEventListener('keydown', handleEscape);
+      };
     } else {
       document.body.style.overflow = 'auto';
     }
     return () => { document.body.style.overflow = 'auto'; }
-  }, [event]);
+  }, [event, onClose]);
 
   if (!event) return null;
 
@@ -27,16 +37,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
 
   return (
     <div className="fixed inset-0 z-[200] bg-black flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        
-        {/* CLOSE BUTTON - High Visibility */}
-        <button 
-            onClick={onClose}
-            className="fixed top-6 right-6 z-[210] group flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-full font-bold uppercase tracking-wider shadow-[0_0_20px_rgba(220,38,38,0.5)] transition-all hover:scale-105 active:scale-95"
-            aria-label="Close"
-        >
-            <span className="text-xs hidden md:inline">Close Panel</span>
-            <X size={20} />
-        </button>
 
         {/* SCROLLABLE CONTENT AREA */}
         <div ref={modalRef} className="flex-1 overflow-y-auto overflow-x-hidden relative custom-scrollbar bg-black">
@@ -60,12 +60,12 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
                             </span>
                         )}
                     </div>
-                    
+
                     <h1 className="text-5xl md:text-7xl lg:text-8xl font-black font-cyber text-white leading-none tracking-tighter mb-4 drop-shadow-2xl animate-in slide-in-from-bottom-4 duration-500 delay-200">
                         {event.title}
                     </h1>
                     
-                    <p className="text-gray-300 font-ui text-lg md:text-xl max-w-2xl leading-relaxed drop-shadow-lg animate-in slide-in-from-bottom-4 duration-500 delay-300">
+                    <p className="text-gray-300 font-ui text-lg md:text-xl max-w-2xl leading-relaxed drop-shadow-lg animate-in slide-in-from-bottom-4 duration-500 delay-300 mb-6">
                         {event.description}
                     </p>
                 </div>
@@ -106,7 +106,13 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
                                     <div className="text-2xl font-black font-cyber text-white tracking-wide">{teams[activeMatch.teamA]?.name}</div>
                                     <div className="text-xs font-mono text-gray-500 uppercase tracking-widest">Challenger</div>
                                 </div>
-                                <div className="text-5xl md:text-6xl">{teams[activeMatch.teamA]?.logo}</div>
+                                <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg border-2 border-white/20 overflow-hidden bg-black/40 flex items-center justify-center shadow-xl">
+                                    {teams[activeMatch.teamA]?.logo?.startsWith('data:image/') ? (
+                                        <img src={teams[activeMatch.teamA].logo} alt={teams[activeMatch.teamA].name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-5xl">{teams[activeMatch.teamA]?.logo || '🎮'}</span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* VS / Score */}
@@ -123,7 +129,13 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
 
                             {/* Team B */}
                             <div className="flex-1 flex items-center justify-start gap-6 text-left">
-                                <div className="text-5xl md:text-6xl">{teams[activeMatch.teamB]?.logo}</div>
+                                <div className="w-20 h-20 md:w-24 md:h-24 rounded-lg border-2 border-white/20 overflow-hidden bg-black/40 flex items-center justify-center shadow-xl">
+                                    {teams[activeMatch.teamB]?.logo?.startsWith('data:image/') ? (
+                                        <img src={teams[activeMatch.teamB].logo} alt={teams[activeMatch.teamB].name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-5xl">{teams[activeMatch.teamB]?.logo || '🎮'}</span>
+                                    )}
+                                </div>
                                 <div>
                                     <div className="text-2xl font-black font-cyber text-white tracking-wide">{teams[activeMatch.teamB]?.name}</div>
                                     <div className="text-xs font-mono text-gray-500 uppercase tracking-widest">Defender</div>
@@ -135,6 +147,18 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
 
                 {/* RIGHT COL: SIDEBAR (4/12) */}
                 <div className="lg:col-span-4 space-y-6">
+
+                    {/* Exit button placed near Team Rosters */}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={onClose}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold uppercase rounded-md border border-white shadow-[0_0_15px_rgba(220,38,38,0.6)] transition-all hover:scale-105 text-xs"
+                        >
+                            <X size={14} />
+                            <span>Exit Stream</span>
+                        </button>
+                    </div>
+
                     {/* Sidebar content (Bracket Summary & Rosters) */}
                     <div className="bg-[#111] border border-white/10 rounded-xl p-6">
                         <h3 className="font-cyber text-xl text-white mb-6 flex items-center gap-3">
@@ -166,10 +190,21 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, teams }) => {
 
                     <div className="bg-[#111] border border-white/10 rounded-xl p-6">
                         <h3 className="font-cyber text-xl text-white mb-6 flex items-center gap-3">
-                            <Users size={20} className="text-blue-500"/> TEAM ROSTERS
+                            <Users size={20} className="text-blue-500"/> SCHEDULED MATCHES
                         </h3>
-                        <div className="grid grid-cols-1 gap-4">
-                             <div className="text-sm text-gray-500 italic">Participating teams: {(Object.values(teams) as Team[]).slice(0, 4).map(t => t.name).join(', ')}...</div>
+                        <div className="space-y-3">
+                            {event.matches.filter(m => m.status === 'scheduled').map(m => (
+                                <div key={m.id} className="flex justify-between items-center p-3 rounded-lg border border-white/10 bg-black/30">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-mono text-gray-500 uppercase tracking-widest">Round {m.round + 1}</span>
+                                        <span className="text-sm font-bold text-white">{teams[m.teamA]?.name || m.teamA} vs {teams[m.teamB]?.name || m.teamB}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-300">SCHEDULED</span>
+                                </div>
+                            ))}
+                            {event.matches.filter(m => m.status === 'scheduled').length === 0 && (
+                                <div className="text-sm text-gray-500 italic">No scheduled matches.</div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -3,7 +3,7 @@ import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { 
     ChevronLeft, Facebook, Twitter, Youtube, Dribbble, Trophy, 
     Gamepad2, Download, MoreHorizontal, Target, Swords, Crosshair, Users,
-    Calendar, Clock, Shield, MapPin, User, ChevronRight, Crown, Brain, Monitor, Timer
+    Calendar, Clock, Shield, MapPin, User, ChevronRight, Crown, Brain, Monitor, Timer, Mail
 } from 'lucide-react';
 import { Team, GameEvent } from '../types';
 import gsap from 'gsap';
@@ -129,6 +129,8 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
   const gamesScrollRef = useRef<HTMLDivElement>(null);
   
   const currentEvent = events.find(e => e.id === selectedEventId) || events[0];
+    const record = currentEvent?.teamRecord || { wins: 0, losses: 0, draws: 0, note: 'Awaiting battles' };
+    const recordTotal = Math.max(1, (record.wins || 0) + (record.losses || 0) + (record.draws || 0));
 
   // Helper to get icon based on game type
   const getGameIcon = (game: string) => {
@@ -225,6 +227,20 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
   const renderContent = () => {
       // Safety check for details object
       const details = currentEvent.details || { status: 'Pending', rules: [], brief: 'Loading...' };
+      const isTeamBased = (() => {
+          const g = (currentEvent.game || '').toLowerCase();
+          const f = (details.format || '').toLowerCase();
+          return f.includes('5v5') || g.includes('valorant') || g.includes('mobile legends');
+      })();
+      const registeredEntriesCount = (() => {
+          const set = new Set<string>();
+          currentEvent.matches?.forEach(m => { if (m.teamA) set.add(m.teamA); if (m.teamB) set.add(m.teamB); });
+          currentEvent.bracket?.forEach(b => {
+              if (b.p1?.id && b.p1.id !== 'tbd') set.add(b.p1.id);
+              if (b.p2?.id && b.p2.id !== 'tbd') set.add(b.p2.id);
+          });
+          return set.size;
+      })();
 
       switch (activeTab) {
           case 'info':
@@ -289,7 +305,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                       </div>
                       <div className="space-y-6">
                           <div className="bg-[#13131c]/60 p-6 rounded-lg border border-white/5">
-                              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Registered Players</h4>
+                              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Registered</h4>
                               <div className="flex -space-x-2 overflow-hidden mb-6 pl-1">
                                   {[1,2,3,4,5].map(i => (
                                       <img key={i} className="inline-block h-10 w-10 rounded-full ring-2 ring-[#13131c] object-cover" src={`https://picsum.photos/100/100?random=${i + (selectedEventId.length * 10)}`} alt=""/>
@@ -299,7 +315,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                               <div className="space-y-3">
                                 <div className="flex justify-between items-center">
                                     <div className="flex items-center gap-2 text-sm text-gray-400"><Users size={14} /> Confirmed</div>
-                                    <span className="text-base font-bold text-white">17 Players</span>
+                                    <span className="text-base font-bold text-white">{registeredEntriesCount} {isTeamBased ? 'Teams' : 'Players'}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <div className="flex items-center gap-2 text-sm text-gray-400"><Target size={14} /> Available</div>
@@ -328,7 +344,13 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
           bracketData={currentEvent.bracket} 
       />
 
-      <div className="absolute top-20 right-[-10%] text-[40rem] opacity-[0.03] pointer-events-none select-none font-sans font-black fixed" style={{ color: tc }}>{currentTeam.logo}</div>
+      <div className="absolute top-20 right-[-10%] opacity-[0.03] pointer-events-none select-none fixed overflow-hidden w-[40rem] h-[40rem]" style={{ color: tc }}>
+        {typeof currentTeam.logo === 'string' && currentTeam.logo.startsWith('data:') ? (
+            <img src={currentTeam.logo} alt={currentTeam.name} className="w-full h-full object-cover" />
+        ) : (
+            <div className="text-[40rem] font-black font-sans">{currentTeam.logo}</div>
+        )}
+      </div>
 
       <div className="w-full max-w-[1400px] min-h-[85vh] relative bg-[#0b0b14] z-10 shadow-2xl group/card flex flex-col">
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none rounded-lg">
@@ -354,7 +376,11 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                         <div className="relative w-20 h-20 md:w-32 md:h-32 mb-4 md:mb-6 group">
                             <div className="absolute inset-0 rounded-full p-[2px] bg-gradient-to-b to-transparent" style={{ backgroundImage: `linear-gradient(to bottom, ${tc}, transparent)` }}>
                                 <div className="w-full h-full rounded-full bg-[#0f0f1a] flex items-center justify-center relative overflow-hidden">
-                                    <span className="text-4xl md:text-6xl select-none transform group-hover:scale-110 transition-transform duration-500">{currentTeam.logo}</span>
+                                    {typeof currentTeam.logo === 'string' && currentTeam.logo.startsWith('data:') ? (
+                                        <img src={currentTeam.logo} alt={currentTeam.name} className="w-full h-full object-cover rounded-full" />
+                                    ) : (
+                                        <span className="text-4xl md:text-6xl select-none transform group-hover:scale-110 transition-transform duration-500">{currentTeam.logo}</span>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -376,6 +402,38 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                             </div>
                         </div>
                     </div>
+
+                    <div className="bg-gradient-to-r from-[#13131c]/80 via-[#13131c]/60 to-[#0f0f1a]/90 rounded-xl p-4 md:p-6 border border-white/5 mb-6 md:mb-10 relative overflow-hidden backdrop-blur-md" style={{ borderColor: `${tc}30` }}>
+                        <div className="absolute inset-0 opacity-20" style={{ background: `radial-gradient(circle at 20% 20%, ${tc}, transparent 45%)` }}></div>
+                        <div className="flex items-center justify-between relative z-10">
+                            <div>
+                                <div className="text-[10px] md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-2">Tournament Mode</div>
+                                <div className="flex items-end gap-3">
+                                    <span className="text-3xl md:text-4xl font-black font-cyber text-white leading-none">{record.wins}-{record.losses}{record.draws ? `-${record.draws}` : ''}</span>
+                                    <span className="text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] text-gray-400">W-L{record.draws ? '-D' : ''}</span>
+                                </div>
+                                <div className="mt-2 text-xs text-gray-400 uppercase tracking-widest">{record.note || 'Match history synced'}</div>
+                            </div>
+                            <div className="flex gap-2 text-[10px] md:text-xs font-bold uppercase tracking-widest">
+                                <span className="px-3 py-1 rounded-full bg-white/10 text-white border border-white/10">W {record.wins}</span>
+                                <span className="px-3 py-1 rounded-full bg-white/5 text-gray-300 border border-white/10">L {record.losses}</span>
+                                {record.draws ? <span className="px-3 py-1 rounded-full bg-white/5 text-gray-300 border border-white/10">D {record.draws}</span> : null}
+                            </div>
+                        </div>
+                        <div className="mt-4 h-2 w-full bg-white/5 rounded-full overflow-hidden relative">
+                            <div className="absolute inset-0 flex">
+                                <div className="h-full" style={{ width: `${Math.min(100, (record.wins || 0) / recordTotal * 100)}%`, backgroundColor: tc }}></div>
+                                <div className="h-full bg-white/10" style={{ width: `${Math.min(100, (record.losses || 0) / recordTotal * 100)}%` }}></div>
+                                {record.draws ? <div className="h-full bg-white/5" style={{ width: `${Math.min(100, (record.draws || 0) / recordTotal * 100)}%` }}></div> : null}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button className="w-full mt-6 md:mt-8 py-3 md:py-4 px-4 md:px-6 rounded-xl font-bold uppercase tracking-widest text-sm md:text-base transition-all duration-300 group flex items-center justify-center gap-3 relative overflow-hidden" style={{ color: tc, borderColor: `${tc}40`, backgroundColor: `${tc}08` }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${tc}15`; e.currentTarget.style.borderColor = `${tc}60`; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = `${tc}08`; e.currentTarget.style.borderColor = `${tc}40`; }} onClick={() => currentEvent.organizer && alert(`Contact ${currentEvent.organizer.name}\n📧 ${currentEvent.organizer.email}\n🎮 Discord: ${currentEvent.organizer.discord || 'N/A'}\n📱 Phone: ${currentEvent.organizer.phone || 'N/A'}`)}>
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity" style={{ background: `radial-gradient(circle at 50% 50%, ${tc}, transparent)` }}></div>
+                        <Mail size={18} className="md:w-5 md:h-5 relative z-10" />
+                        <span className="relative z-10">Contact</span>
+                    </button>
                 </div>
             </div>
 

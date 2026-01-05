@@ -272,14 +272,19 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
             endTl.to(group.scale, { x: 0.01, y: 0.01, z: 0.01, duration: 0.4, ease: "back.in(2)" });
             
             // 2. Whiteout Flash
-            endTl.to(mountRef.current, { backgroundColor: '#ffffff', duration: 0.1 }, "-=0.1");
+            if (mountRef.current) {
+              endTl.to(mountRef.current, { backgroundColor: '#ffffff', duration: 0.1 }, "-=0.1");
+            }
             
             // 3. Fade out
-            endTl.to(mountRef.current, { opacity: 0, duration: 0.5 });
+            if (mountRef.current) {
+              endTl.to(mountRef.current, { opacity: 0, duration: 0.5 });
+            }
         }
     });
 
-    tl.to(progressRef, {
+    try {
+      tl.to(progressRef, {
         current: 100,
         duration: 5.5,
         ease: "power3.inOut",
@@ -289,7 +294,23 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
             const idx = Math.floor((val / 100) * (BOOT_LOGS.length - 1));
             if (idx !== logIndex) setLogIndex(idx);
         }
-    });
+      });
+    } catch (err) {
+      console.error('GSAP timeline error:', err);
+      // Fallback: auto-complete after 6 seconds
+      setTimeout(() => {
+        setProgress(100);
+        setTimeout(onComplete, 1000);
+      }, 6000);
+    }
+
+    // Fallback: Force completion after 7 seconds if GSAP fails
+    const fallbackTimer = setTimeout(() => {
+      if (progressRef.current < 100) {
+        console.warn('Loader timeout - forcing completion');
+        onComplete();
+      }
+    }, 7000);
 
     // Resize Handler
     const handleResize = () => {
@@ -300,6 +321,7 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
     window.addEventListener('resize', handleResize);
 
     return () => {
+        clearTimeout(fallbackTimer);
         window.removeEventListener('resize', handleResize);
         cancelAnimationFrame(frameId);
         if (mountRef.current && renderer.domElement) {
@@ -307,7 +329,7 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
         }
         renderer.dispose();
     };
-  }, []);
+  }, [onComplete]);
 
   return (
     <div 

@@ -1,9 +1,10 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppState, GameEvent, Match, Team, BracketMatch, Challenge } from '../types';
-import { Settings, PlayCircle, Clock, Save, X, Activity, Trophy, Swords, Tv, Plus, Minus, Edit3, Users, Crown, ChevronRight, LayoutTemplate, Database, Image as ImageIcon, Upload, Link as LinkIcon, Monitor, Youtube, Twitch, Facebook, FileText, Calendar, QrCode, Printer, CheckSquare, Brain, Zap, ScanLine, FileDown, Gamepad2, AlertCircle } from 'lucide-react';
+import { Settings, PlayCircle, Clock, Save, X, Activity, Trophy, Swords, Tv, Plus, Minus, Edit3, Users, Crown, ChevronRight, LayoutTemplate, Database, Image as ImageIcon, Upload, Link as LinkIcon, Monitor, Youtube, Twitch, Facebook, FileText, Calendar, QrCode, Printer, CheckSquare, Brain, Zap, ScanLine, FileDown, Sparkles, Rocket, Terminal } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { gsap } from 'gsap';
+import * as THREE from 'three';
 
 interface AdminPanelProps {
   appState: AppState;
@@ -14,16 +15,21 @@ interface AdminPanelProps {
   updateChallenges: (challenges: Challenge[]) => void; 
   updateCountdown: (date: string) => void;
   updateMatchStatus: (eventId: string, matchId: string, status: Match['status']) => void;
-  updateMatchStream: (eventId: string, matchId: string, streamUrl: string) => void;
-  updateTeamPoints: (teamId: string, points: number, source: string) => void;
+    updateMatchStream: (eventId: string, matchId: string, streamUrl: string) => void;
+    updateTeamPoints: (teamId: string, points: number, source: string, comment?: string, updatedBy?: string) => void;
+    refreshTeamBreakdown?: (teamId: string) => Promise<void>;
   updateBracketMatch: (matchId: string, p1Score: number | null, p2Score: number | null, status: string) => void;
   updateEventBracketMatch: (eventId: string, matchId: string, p1Score: number | null, p2Score: number | null, status: string) => void;
   updateEvent?: (eventId: string, updates: Partial<GameEvent>) => void; 
   updateTeam?: (teamId: string, updates: Partial<Team>) => void;
+  createTeam?: (team: Team) => Promise<void>;
+  deleteTeam?: (teamId: string) => Promise<void>;
+  createEvent?: (event: Partial<GameEvent>) => Promise<void>;
+  deleteEvent?: (eventId: string) => Promise<void>;
   toggleConfetti: () => void;
+  onClose?: () => void;
 }
 
-// ... (StreamEditor component remains the same, assuming it's imported or defined here)
 const StreamEditor = ({ match, eventId, onSave }: { match: Match, eventId: string, onSave: (eId: string, mId: string, url: string) => void }) => {
     const [type, setType] = useState<'twitch'|'youtube'|'facebook'|'custom'>('twitch');
     const [val, setVal] = useState('');
@@ -65,14 +71,23 @@ const StreamEditor = ({ match, eventId, onSave }: { match: Match, eventId: strin
     );
 };
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ 
+const AdminPanel: React.FC<AdminPanelProps> = ({
     appState, events, teams, bracketData, challenges, updateChallenges,
-    updateCountdown, updateMatchStatus, updateMatchStream, updateTeamPoints, updateBracketMatch, updateEventBracketMatch, updateEvent, updateTeam, toggleConfetti 
+    updateCountdown, updateMatchStatus, updateMatchStream, updateTeamPoints, refreshTeamBreakdown, updateBracketMatch, updateEventBracketMatch, updateEvent, updateTeam, createTeam, deleteTeam, createEvent, deleteEvent, toggleConfetti, onClose
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'tournaments' | 'database' | 'challenges'>('general');
+  // Start open when onClose is provided (means we're on /admin route)
+  const [isOpen, setIsOpen] = useState(!!onClose);
+  const [activeTab, setActiveTab] = useState<'general' | 'tournaments' | 'database' | 'challenges' | 'live-arena'>('general');
   const [printMode, setPrintMode] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [lastSync, setLastSync] = useState<Date | null>(null);
+    const [showCreateEvent, setShowCreateEvent] = useState(false);
+    const [eventDraft, setEventDraft] = useState<{ title: string; game: string; shortName: string; image: string; description: string; bracketType: 'single' | 'double' }>(
+        { title: '', game: '', shortName: '', image: '', description: '', bracketType: 'single' }
+    );
+    const [teamDraft, setTeamDraft] = useState<{ id: string; name: string; color: string; logo: string; seed: number; description: string }>(
+        { id: '', name: '', color: '#7c3aed', logo: '', seed: 1, description: '' }
+    );
   
   // Existing States
   const [selectedEventId, setSelectedEventId] = useState<string | null>(events[0]?.id || null);
@@ -80,24 +95,321 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [dateInput, setDateInput] = useState(appState.countdownEnd.slice(0, 16));
   const [pointsInput, setPointsInput] = useState(100);
-  const [reasonInput, setReasonInput] = useState('Admin Bonus');
+    const [reasonInput, setReasonInput] = useState('Admin Bonus');
+    const [commentInput, setCommentInput] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState<string>('t1');
 
   // Challenge States
   const [editingChallengeId, setEditingChallengeId] = useState<string>('c1');
-  const [quizConfigJson, setQuizConfigJson] = useState('');
+    const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
 
-  const activeEvent = events.find(e => e.id === selectedEventId);
-  const activeChallenge = challenges.find(c => c.id === editingChallengeId);
+  // Live Arena States
+  const [liveStreams, setLiveStreams] = useState<any[]>([]);
+  const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
+  const [streamDraft, setStreamDraft] = useState<any>({
+    title: '',
+    embed_url: '',
+    thumbnail_url: '',
+    thumbnail_mode: 'embed',
+    game_category: '',
+    tournament_id: '',
+    status: 'scheduled',
+    placement: 'recommended', team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0
+  });
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [isLoadingStreams, setIsLoadingStreams] = useState(false);
 
-  // Sync local quiz JSON state with active challenge
+    const activeEvent = events.find(e => e.id === selectedEventId);
+    const activeChallenge = challenges.find(c => c.id === editingChallengeId);
+    const activeTeam = activeTeamId ? teams[activeTeamId] : undefined;
+
+  // Three.js and animation refs
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
+
+  // Initialize Three.js background
   useEffect(() => {
-      if (activeChallenge?.gameConfig) {
-          setQuizConfigJson(JSON.stringify(activeChallenge.gameConfig, null, 2));
-      } else {
-          setQuizConfigJson('{\n  "questions": [\n    {\n      "q": "Example Question?",\n      "options": ["Option A", "Option B", "Option C", "Option D", "Option E"],\n      "correct": 0\n    }\n  ]\n}');
+    if (!canvasRef.current || !isOpen) return;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ 
+      canvas: canvasRef.current, 
+      alpha: true,
+      antialias: true 
+    });
+
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    camera.position.z = 5;
+
+    sceneRef.current = scene;
+
+    // Create animated particle field
+    const particlesGeometry = new THREE.BufferGeometry();
+    const particlesCount = 2000;
+    const posArray = new Float32Array(particlesCount * 3);
+    const colorsArray = new Float32Array(particlesCount * 3);
+    
+    const colors = [
+      new THREE.Color(0x7c3aed), // Purple
+      new THREE.Color(0xa855f7), // Light purple
+      new THREE.Color(0xec4899), // Pink
+      new THREE.Color(0x06b6d4), // Cyan
+    ];
+
+    for (let i = 0; i < particlesCount * 3; i += 3) {
+      posArray[i] = (Math.random() - 0.5) * 20;
+      posArray[i + 1] = (Math.random() - 0.5) * 20;
+      posArray[i + 2] = (Math.random() - 0.5) * 20;
+      
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      colorsArray[i] = color.r;
+      colorsArray[i + 1] = color.g;
+      colorsArray[i + 2] = color.b;
+    }
+
+    particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colorsArray, 3));
+
+    const particlesMaterial = new THREE.PointsMaterial({
+      size: 0.05,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+    scene.add(particlesMesh);
+
+    // Create glowing grid
+    const gridHelper = new THREE.GridHelper(20, 20, 0x7c3aed, 0x2e1065);
+    gridHelper.position.y = -2;
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.3;
+    scene.add(gridHelper);
+
+    // Create floating holographic panels
+    const panelGeometry = new THREE.PlaneGeometry(1, 1);
+    const panelMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0x7c3aed,
+      transparent: true,
+      opacity: 0.1,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    });
+
+    const panels: THREE.Mesh[] = [];
+    for (let i = 0; i < 5; i++) {
+      const panel = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+      panel.position.set(
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 5
+      );
+      panel.rotation.set(
+        Math.random() * Math.PI,
+        Math.random() * Math.PI,
+        Math.random() * Math.PI
+      );
+      panels.push(panel);
+      scene.add(panel);
+    }
+
+        // Track cursor for parallax
+        const mouse = { x: 0.5, y: 0.5 };
+        const handleMouse = (e: MouseEvent) => {
+            mouse.x = e.clientX / window.innerWidth;
+            mouse.y = e.clientY / window.innerHeight;
+        };
+        window.addEventListener('mousemove', handleMouse);
+
+        // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+
+      particlesMesh.rotation.y += 0.0005;
+      particlesMesh.rotation.x += 0.0002;
+
+            // Subtle parallax driven by cursor
+            const parallaxX = (mouse.x - 0.5) * 0.12;
+            const parallaxY = (mouse.y - 0.5) * 0.12;
+            camera.position.x += (parallaxX - camera.position.x) * 0.02;
+            camera.position.y += (-parallaxY - camera.position.y) * 0.02;
+            camera.lookAt(scene.position);
+
+      panels.forEach((panel, i) => {
+        panel.rotation.x += 0.001 * (i + 1);
+        panel.rotation.y += 0.001 * (i + 1);
+        panel.position.y += Math.sin(Date.now() * 0.001 + i) * 0.001;
+      });
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    const handleResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+            window.removeEventListener('mousemove', handleMouse);
+      renderer.dispose();
+      particlesGeometry.dispose();
+      particlesMaterial.dispose();
+      panelGeometry.dispose();
+      panels.forEach(panel => panel.geometry.dispose());
+    };
+  }, [isOpen]);
+
+  // GSAP entrance animation
+  useEffect(() => {
+    if (isOpen && panelRef.current) {
+      gsap.from(panelRef.current, {
+        scale: 0.8,
+        opacity: 0,
+        duration: 0.6,
+        ease: 'elastic.out(1, 0.75)',
+      });
+    }
+  }, [isOpen]);
+
+    // Default select a team when data arrives
+    useEffect(() => {
+        if (!activeTeamId && Object.values(teams)[0]) {
+            const firstTeam = Object.values(teams)[0] as Team;
+            setActiveTeamId(firstTeam.id);
+            setEditingTeamId(firstTeam.id);
+        }
+    }, [teams, activeTeamId]);
+
+    // Live sync indicator bumps when data changes
+    useEffect(() => {
+        if (events || teams || challenges || appState) {
+            setLastSync(new Date());
+            if (panelRef.current) {
+                gsap.fromTo(
+                    panelRef.current,
+                    { boxShadow: '0 0 0 rgba(124,58,237,0)' },
+                    { boxShadow: '0 0 40px rgba(124,58,237,0.35)', duration: 0.4, ease: 'power2.out' }
+                );
+            }
+        }
+    }, [events, teams, challenges, appState]);
+
+  // GSAP tab transition animation
+  useEffect(() => {
+    if (tabContentRef.current) {
+      gsap.from(tabContentRef.current, {
+        opacity: 0,
+        y: 20,
+        duration: 0.4,
+        ease: 'power2.out',
+      });
+    }
+  }, [activeTab]);
+
+  // Fetch live streams when tab opens
+  useEffect(() => {
+    if (activeTab === 'live-arena') {
+      fetchLiveStreams();
+      
+      // Set up WebSocket listener for real-time updates
+      try {
+        const ws = new WebSocket('ws://localhost:5000/api/ws');
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            if (message.type?.includes('live_stream')) {
+              console.log('🔄 Live stream updated via WebSocket, refreshing...');
+              fetchLiveStreams();
+            }
+          } catch (err) {
+            console.error('WebSocket message error:', err);
+          }
+        };
+        return () => ws.close();
+      } catch (err) {
+        console.warn('WebSocket failed for admin panel');
       }
-  }, [activeChallenge?.id]);
+    }
+  }, [activeTab]);
+
+  // Fetch live streams from API
+  const fetchLiveStreams = async () => {
+    setIsLoadingStreams(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/live-streams');
+      if (response.ok) {
+        const data = await response.json();
+        setLiveStreams(data);
+        console.log('✅ Fetched live streams:', data.length);
+      } else {
+        console.error('Failed to fetch live streams');
+      }
+    } catch (error) {
+      console.error('Error fetching live streams:', error);
+    } finally {
+      setIsLoadingStreams(false);
+    }
+  };
+
+  // Floating button animation
+  useEffect(() => {
+    const button = document.querySelector('.admin-floating-button');
+    if (button && !isOpen) {
+      gsap.to(button, {
+        y: -10,
+        duration: 1.5,
+        repeat: -1,
+        yoyo: true,
+        ease: 'power1.inOut',
+      });
+    }
+  }, [isOpen]);
+
+  // Card hover animation helper
+  const handleCardHover = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    gsap.to(card, {
+      scale: 1.02,
+      y: -5,
+      boxShadow: '0 20px 60px rgba(124, 58, 237, 0.4)',
+      duration: 0.3,
+      ease: 'power2.out',
+    });
+  };
+
+  const handleCardLeave = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = e.currentTarget;
+    gsap.to(card, {
+      scale: 1,
+      y: 0,
+      boxShadow: '0 0 0 rgba(124, 58, 237, 0)',
+      duration: 0.3,
+      ease: 'power2.out',
+    });
+  };
+
+    const formatTimeAgo = (date?: Date | null) => {
+        if (!date) return 'waiting';
+        const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+        if (diff < 5) return 'just now';
+        if (diff < 60) return `${diff}s ago`;
+        const m = Math.floor(diff / 60);
+        if (m < 60) return `${m}m ago`;
+        const h = Math.floor(m / 60);
+        return `${h}h ago`;
+    };
 
   // Helper for Tournament Detail Update
   const updateEventDetail = (key: string, value: any) => {
@@ -110,23 +422,217 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       });
   };
 
-  const handleChallengeUpdate = (key: keyof Challenge, value: any) => {
+  const handleChallengeUpdate = (key: keyof Challenge, value: string | number) => {
       updateChallenges(challenges.map(c => c.id === editingChallengeId ? { ...c, [key]: value } : c));
-  };
-
-  const handleQuizJsonBlur = () => {
-      try {
-          const parsed = JSON.parse(quizConfigJson);
-          handleChallengeUpdate('gameConfig', parsed);
-      } catch (e) {
-          alert("Invalid JSON format for Quiz Config");
-      }
   };
 
   const createChallenge = () => {
       const newId = `c${challenges.length + 1}`;
-      updateChallenges([...challenges, { id: newId, title: 'New Challenge', description: '', question: '', answer: '', points: 100, gameType: 'none' }]);
+      updateChallenges([...challenges, { id: newId, title: 'New Challenge', description: '', question: '', answer: '', points: 100 }]);
       setEditingChallengeId(newId);
+  };
+
+  // Live Stream Functions
+  const saveStream = async () => {
+    if (!streamDraft.title.trim() || !streamDraft.embed_url.trim()) {
+      alert('Title and embed URL are required');
+      return;
+    }
+
+    try {
+      const payload = {
+        ...streamDraft,
+        thumbnail_url: thumbnailFile ? await fileToBase64(thumbnailFile) : streamDraft.thumbnail_url
+      };
+
+      if (editingStreamId && editingStreamId !== 'new') {
+        // Update existing stream
+        const response = await fetch(`http://localhost:5000/api/live-streams/${editingStreamId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+          await fetchLiveStreams(); // Refresh list
+          alert('Stream updated successfully!');
+          console.log('✅ Stream updated and synced');
+        } else {
+          const error = await response.text();
+          console.error('Failed to update stream:', error);
+          alert('Failed to update stream: ' + error);
+        }
+      } else {
+        // Create new stream
+        const response = await fetch('http://localhost:5000/api/live-streams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+          await fetchLiveStreams(); // Refresh list
+          alert('Stream created successfully!');
+          console.log('✅ Stream created and synced');
+          // Reset form
+          setEditingStreamId(null);
+          setStreamDraft({
+            title: '',
+            embed_url: '',
+            thumbnail_url: '',
+            thumbnail_mode: 'embed',
+            game_category: '',
+            tournament_id: '',
+            status: 'scheduled',
+            placement: 'recommended', team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0,
+            description: ''
+          });
+          setThumbnailFile(null);
+        } else {
+          const error = await response.text();
+          console.error('Failed to create stream:', error);
+          alert('Failed to create stream: ' + error);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving stream:', error);
+      alert('Failed to save stream: ' + (error as Error).message);
+    }
+  };
+
+  const deleteStream = async () => {
+    if (!editingStreamId || !window.confirm('Are you sure you want to delete this stream?')) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/live-streams/${editingStreamId}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        await fetchLiveStreams(); // Refresh list
+        setEditingStreamId(null);
+        alert('Stream deleted successfully!');
+        console.log('✅ Stream deleted and synced');
+      } else {
+        const error = await response.text();
+        console.error('Failed to delete stream:', error);
+        alert('Failed to delete stream: ' + error);
+      }
+    } catch (error) {
+      console.error('Error deleting stream:', error);
+      alert('Failed to delete stream: ' + (error as Error).message);
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+  const handleCreateEvent = async () => {
+      if (!createEvent) return;
+      const newId = eventDraft.shortName || eventDraft.title.replace(/\s+/g, '-').toLowerCase() || `evt-${Date.now()}`;
+      if (!eventDraft.title || !eventDraft.game) {
+          alert('Title and game are required');
+          return;
+      }
+      await createEvent({
+          id: newId,
+          title: eventDraft.title,
+          game: eventDraft.game,
+          shortName: eventDraft.shortName || newId,
+          image: eventDraft.image,
+          description: eventDraft.description,
+          bracketType: eventDraft.bracketType,
+      });
+      setSelectedEventId(newId);
+      setShowCreateEvent(false);
+      setEventDraft({ title: '', game: '', shortName: '', image: '', description: '', bracketType: 'single' });
+    };
+
+  const handleCreateTeam = async () => {
+      if (!createTeam) return;
+      const newId = teamDraft.id || `t${Object.keys(teams).length + 1}`;
+      if (!teamDraft.name.trim()) {
+          alert('Team name is required');
+          return;
+      }
+      await createTeam({
+          id: newId,
+          name: teamDraft.name,
+          logo: teamDraft.logo || '🎮',
+          seed: Number(teamDraft.seed) || 1,
+          description: teamDraft.description,
+          color: teamDraft.color,
+          breakdown: [],
+      } as Team);
+      setActiveTeamId(newId);
+      setTeamDraft({ id: '', name: '', color: '#7c3aed', logo: '', seed: 1, description: '' });
+    };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && updateTeam && activeTeamId) {
+        try {
+            // Validate file size (max 2MB for image)
+            const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+            if (file.size > MAX_SIZE) {
+                alert('Image too large! Max 2MB. Please compress and try again.');
+                return;
+            }
+
+            // Validate file type
+            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                alert('Invalid image format. Please use JPG, PNG, GIF, or WebP.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                const base64 = reader.result as string;
+                
+                // Check if base64 string is complete (should start with "data:image/")
+                if (!base64.startsWith('data:image/')) {
+                    throw new Error('Invalid image data format');
+                }
+
+                // Warn if image is very large
+                if (base64.length > 1000000) {
+                    console.warn('⚠️ Large image detected. Consider compressing for better performance.');
+                }
+
+                console.log('📸 Logo uploaded successfully');
+                console.log(`📊 Image size: ${(base64.length / 1024).toFixed(2)} KB`);
+
+                // Save to database immediately - this will trigger real-time sync
+                await updateTeam(activeTeamId, { logo: base64 });
+                
+                // ALSO save to localStorage for persistence on refresh
+                try {
+                    const savedTeams = JSON.parse(localStorage.getItem('iteverse_teams') || '{}');
+                    if (savedTeams[activeTeamId]) {
+                        savedTeams[activeTeamId].logo = base64;
+                        localStorage.setItem('iteverse_teams', JSON.stringify(savedTeams));
+                        console.log('💾 Logo saved to localStorage - will persist on refresh');
+                    }
+                } catch (err) {
+                    console.warn('⚠️ Could not save logo to localStorage:', err);
+                }
+
+                console.log('🔄 Broadcasting to all connected users via WebSocket...');
+            };
+            
+            reader.onerror = () => {
+                throw new Error('Failed to read file');
+            };
+            
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('Failed to upload logo:', error);
+            alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
   };
 
   // OPEN PRINT STUDIO (Persistent)
@@ -142,14 +648,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       const cardElement = document.getElementById('printable-card');
       if (cardElement) {
           try {
+              // Increase scale for better resolution
               const canvas = await html2canvas(cardElement, {
-                  scale: 4, 
+                  scale: 4, // High Res
                   backgroundColor: '#000000',
                   useCORS: true,
                   logging: false
               });
 
               const imgData = canvas.toDataURL('image/png');
+              
+              // A6 dimensions in mm: 105 x 148
               const pdf = new jsPDF({
                   orientation: 'portrait',
                   unit: 'mm',
@@ -179,6 +688,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   return (
     <>
+      {/* Three.js Canvas Background */}
+      {isOpen && (
+        <canvas
+          ref={canvasRef}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            zIndex: 999,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
     {/* PERSISTENT PRINT STUDIO OVERLAY */}
     {printMode && activeChallenge && (
         <div className="print-overlay fixed inset-0 z-[1000] bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center font-sans overflow-hidden">
@@ -215,50 +740,100 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     id="printable-card"
                     className="relative w-[105mm] h-[148mm] bg-[#05050a] overflow-hidden flex flex-col justify-between box-border border-[8px] border-[#7c3aed] relative"
                 >
-                    {/* (Same Card Content as before) */}
+                    
+                    {/* Background Glitch Noise - Multi-Team Colored Static */}
                     <div className="absolute inset-0 bg-[#0f0518] z-0"></div>
-                    <div className="absolute inset-0 z-0 opacity-20" style={{ backgroundImage: `repeating-linear-gradient(45deg,#2e1065 0px,#2e1065 10px,#eab308 10px,#eab308 12px,#2e1065 12px,#2e1065 22px,#06b6d4 22px,#06b6d4 24px,#2e1065 24px,#2e1065 34px,#ef4444 34px,#ef4444 36px,#2e1065 36px,#2e1065 46px,#00f0b5 46px,#00f0b5 48px)` }}></div>
+                    <div 
+                        className="absolute inset-0 z-0 opacity-20"
+                        style={{
+                            backgroundImage: `repeating-linear-gradient(
+                                45deg,
+                                #2e1065 0px,
+                                #2e1065 10px,
+                                #eab308 10px, /* Yellow T1 */
+                                #eab308 12px,
+                                #2e1065 12px,
+                                #2e1065 22px,
+                                #06b6d4 22px, /* Cyan T2 */
+                                #06b6d4 24px,
+                                #2e1065 24px,
+                                #2e1065 34px,
+                                #ef4444 34px, /* Red T4 */
+                                #ef4444 36px,
+                                #2e1065 36px,
+                                #2e1065 46px,
+                                #00f0b5 46px, /* Green T3 */
+                                #00f0b5 48px
+                            )`
+                        }}
+                    ></div>
+                    {/* Vertical Scanlines for interference */}
                     <div className="absolute inset-0 bg-[repeating-linear-gradient(90deg,transparent,transparent_2px,#000_2px,#000_4px)] opacity-40 z-0"></div>
+                    
+                    {/* Glow Blobs */}
                     <div className="absolute top-0 right-0 w-48 h-48 bg-purple-600/40 blur-[80px] rounded-full z-0"></div>
                     <div className="absolute bottom-20 left-0 w-48 h-48 bg-cyan-600/40 blur-[80px] rounded-full z-0"></div>
 
+                    {/* --- HEADER: IT-VERSE --- */}
                     <div className="h-[40mm] w-full flex flex-col justify-center items-center relative z-10 pt-4">
                         <div className="relative inline-block whitespace-nowrap">
+                            {/* Static Chromatic Aberration - Layer 1 (Red) */}
                             <span className="absolute top-0 left-[-3px] font-cyber font-black text-6xl tracking-widest text-[#ff003c] opacity-70 mix-blend-screen select-none w-full text-center">IT-VERSE</span>
+                            {/* Static Chromatic Aberration - Layer 2 (Cyan) */}
                             <span className="absolute top-0 left-[3px] font-cyber font-black text-6xl tracking-widest text-[#00f0ff] opacity-70 mix-blend-screen select-none w-full text-center">IT-VERSE</span>
+                            {/* Main Text (White) */}
                             <span className="relative font-cyber font-black text-6xl tracking-widest text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.9)]">IT-VERSE</span>
                         </div>
                     </div>
 
+                    {/* --- CENTER: QR CODE --- */}
                     <div className="flex-1 w-full flex items-center justify-center relative z-10 p-2">
+                        {/* Reality Breach Frame */}
                         <div className="relative p-3 bg-white shadow-[0_0_60px_rgba(124,58,237,0.5)] border-4 border-purple-500">
+                            {/* Distortion Bars */}
                             <div className="absolute -left-6 top-8 w-12 h-2 bg-purple-600 skew-x-[-20deg]"></div>
                             <div className="absolute -right-6 bottom-8 w-12 h-2 bg-cyan-500 skew-x-[-20deg]"></div>
                             <div className="absolute left-8 -top-3 w-2 h-8 bg-yellow-500 skew-y-[-20deg]"></div>
                             <div className="absolute right-8 -bottom-3 w-2 h-8 bg-red-500 skew-y-[-20deg]"></div>
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=CHALLENGE:${activeChallenge.id}&color=000000&bgcolor=ffffff&margin=0`} className="w-44 h-44 rendering-pixelated mix-blend-normal block" style={{ imageRendering: 'pixelated' }} alt="QR" />
+
+                            <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=CHALLENGE:${activeChallenge.id}&color=000000&bgcolor=ffffff&margin=0`} 
+                                className="w-44 h-44 rendering-pixelated mix-blend-normal block" 
+                                style={{ imageRendering: 'pixelated' }}
+                                alt="QR" 
+                            />
                         </div>
                     </div>
 
+                    {/* --- FOOTER: PROBLEM NAME --- */}
                     <div className="h-[40mm] w-full flex flex-col justify-center items-center px-4 relative z-10 text-center bg-white border-t-[6px] border-purple-600">
                         <div className="w-full py-4">
                             <div className="text-[10px] font-mono font-bold text-purple-900 uppercase tracking-[0.5em] mb-2 block">MISSION_OBJECTIVE</div>
+                            {/* Problem Name - Bold and Glitchy */}
                             <div className="relative w-full">
-                                <div className="font-cyber font-black text-4xl text-black uppercase tracking-wider leading-none break-words w-full px-2">{activeChallenge.title}</div>
+                                <div className="font-cyber font-black text-4xl text-black uppercase tracking-wider leading-none break-words w-full px-2">
+                                    {activeChallenge.title}
+                                </div>
                             </div>
                         </div>
                     </div>
+
+                    {/* Decorative "Cuts" */}
                     <div className="absolute top-[28%] left-0 w-6 h-1.5 bg-cyan-400 z-20 shadow-[0_0_10px_cyan]"></div>
                     <div className="absolute top-[30%] left-0 w-3 h-1.5 bg-yellow-400 z-20"></div>
                     <div className="absolute bottom-[28%] right-0 w-6 h-1.5 bg-red-500 z-20 shadow-[0_0_10px_red]"></div>
                     <div className="absolute bottom-[30%] right-0 w-3 h-1.5 bg-purple-500 z-20"></div>
+
                 </div>
             </div>
         </div>
     )}
 
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/90 backdrop-blur-lg p-4 animate-in fade-in zoom-in duration-300 font-sans admin-container">
-      <div className="w-full max-w-[95vw] h-[95vh] bg-[#05050a] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+      <div 
+        ref={panelRef}
+        className="w-full max-w-[95vw] h-[95vh] bg-[#05050a] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative"
+      >
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[length:40px_40px] pointer-events-none"></div>
 
         <div className="bg-[#0a0a0f] p-6 flex justify-between items-center border-b border-white/10 shrink-0 relative z-10">
@@ -266,38 +841,290 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="p-3 bg-purple-500/20 rounded-lg border border-purple-500/50 shrink-0"><Settings className="text-purple-400 animate-spin-slow" size={28} /></div>
                 <div className="min-w-0"><h2 className="text-3xl font-bold text-white font-cyber tracking-widest truncate">SYSTEM ADMIN</h2><div className="text-xs text-gray-500 font-mono flex items-center gap-2 mt-1"><span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span> ONLINE // V2.0.4</div></div>
             </div>
-            
-            {/* UPDATED CLOSE BUTTON FOR HIGH VISIBILITY */}
-            <button 
-                onClick={() => setIsOpen(false)} 
-                className="w-14 h-14 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-500/20 border border-red-400 transition-all hover:scale-105 shrink-0 ml-4 group"
-                aria-label="Close Admin Panel"
-            >
-                <X size={32} className="group-hover:rotate-90 transition-transform duration-300" />
-            </button>
+            <div className="flex items-center gap-3">
+                <div className="px-3 py-2 rounded-full bg-green-900/20 border border-green-500/30 text-green-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2"><Activity size={14}/> Live Sync</div>
+                <div className="text-[11px] text-gray-500 font-mono">Updated {formatTimeAgo(lastSync)}</div>
+                <button
+                    onClick={() => { setIsOpen(false); if (onClose) onClose(); }}
+                    className="w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 border border-white/5 transition-colors shrink-0 ml-4"
+                    aria-label="Close Admin Panel"
+                >
+                    <X size={32} />
+                </button>
+            </div>
         </div>
 
         <div className="flex border-b border-white/10 shrink-0 bg-[#0a0a0f] relative z-10 overflow-x-auto">
-            {/* ... Rest of the tabs logic remains the same ... */}
             {[
                 { id: 'general', label: 'Dashboard', icon: Activity }, 
                 { id: 'tournaments', label: 'Tournament Manager', icon: Trophy }, 
                 { id: 'database', label: 'Faction Database', icon: Database },
+                { id: 'live-arena', label: 'Live Arena', icon: Tv },
                 { id: 'challenges', label: 'Challenge Architect', icon: QrCode }
             ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`px-10 py-6 flex items-center gap-3 text-base font-bold uppercase tracking-widest transition-all relative whitespace-nowrap ${activeTab === tab.id ? 'text-white bg-white/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}><tab.icon size={18} />{tab.label}{activeTab === tab.id && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-500 shadow-[0_0_10px_#a855f7]"></div>}</button>
             ))}
         </div>
 
-        <div className="flex-1 overflow-hidden relative z-10">
-            {/* ... (Previous tabs content remains unchanged, just returning the existing structure) ... */}
-            {/* To save tokens, I'm assuming the existing complex structure for tabs is preserved as it was in the input file. 
-                I will just render the container and structure around it as I haven't modified the inner content logic. */}
+        <div ref={tabContentRef} className="flex-1 overflow-hidden relative z-10">
+            {/* ... (Previous tabs omitted for brevity, logic remains same) ... */}
             {activeTab === 'general' && (
                 <div className="p-10 h-full overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-10">
-                    <div className="bg-[#111] border border-white/10 rounded-xl p-8 relative overflow-hidden group"><div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Clock size={120} /></div><h3 className="text-purple-400 font-bold font-cyber text-2xl mb-8 flex items-center gap-3">GLOBAL_TIMER</h3><div className="space-y-6"><label className="text-sm text-gray-500 font-bold uppercase tracking-widest">Target Date & Time</label><input type="datetime-local" value={dateInput} onChange={(e) => setDateInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-5 rounded-lg font-mono text-lg focus:border-purple-500 focus:outline-none transition-colors" /><button onClick={() => updateCountdown(new Date(dateInput).toISOString())} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-5 rounded-lg transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] uppercase tracking-widest text-base">Sync Chronometer</button></div></div>
-                    <div className="bg-[#111] border border-white/10 rounded-xl p-8 relative overflow-hidden group"><div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Plus size={120} /></div><h3 className="text-yellow-400 font-bold font-cyber text-2xl mb-8 flex items-center gap-3">QUICK_POINTS</h3><div className="space-y-6"><div className="grid grid-cols-2 gap-6"><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Faction</label><select value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none">{(Object.values(teams) as Team[]).map((t: Team) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></div><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Amount</label><input type="number" value={pointsInput} onChange={(e) => setPointsInput(parseInt(e.target.value))} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none" /></div></div><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Reference</label><input type="text" value={reasonInput} onChange={(e) => setReasonInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none" placeholder="e.g. Scavenger Hunt" /></div><button onClick={() => updateTeamPoints(selectedTeamId, pointsInput, reasonInput)} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 rounded-lg transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] uppercase tracking-widest text-base flex items-center justify-center gap-2"><Save size={18} /> Transaction Commit</button></div></div>
-                    <div className="md:col-span-2 bg-[#111] border border-white/10 rounded-xl p-8 flex items-center justify-between"><div><h3 className="text-pink-400 font-bold font-cyber text-2xl mb-2">LIVE FX CONTROL</h3><p className="text-gray-500 text-sm font-mono">Trigger global particle systems and celebration effects.</p></div><button onClick={toggleConfetti} className="bg-pink-900/20 border border-pink-500/50 text-pink-400 hover:bg-pink-500 hover:text-white px-10 py-4 rounded-lg font-bold text-base transition-all uppercase tracking-widest flex items-center gap-3"><PlayCircle size={22} /> Deploy Confetti</button></div>
+                    <div 
+                      className="bg-[#111] border border-white/10 rounded-xl p-8 relative overflow-hidden group cursor-pointer"
+                      onMouseEnter={handleCardHover}
+                      onMouseLeave={handleCardLeave}
+                    >
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Clock size={120} /></div><h3 className="text-purple-400 font-bold font-cyber text-2xl mb-8 flex items-center gap-3">GLOBAL_TIMER</h3><div className="space-y-6"><label className="text-sm text-gray-500 font-bold uppercase tracking-widest">Target Date & Time</label><input type="datetime-local" value={dateInput} onChange={(e) => setDateInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-5 rounded-lg font-mono text-lg focus:border-purple-500 focus:outline-none transition-colors" /><button onClick={() => updateCountdown(new Date(dateInput).toISOString())} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-5 rounded-lg transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] uppercase tracking-widest text-base">Sync Chronometer</button></div>
+                    </div>
+                    <div 
+                      className="bg-[#111] border border-white/10 rounded-xl p-8 relative overflow-hidden group cursor-pointer"
+                      onMouseEnter={handleCardHover}
+                      onMouseLeave={handleCardLeave}
+                    >
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Plus size={120} /></div><h3 className="text-yellow-400 font-bold font-cyber text-2xl mb-8 flex items-center gap-3">QUICK_POINTS</h3><div className="space-y-6"><div className="grid grid-cols-2 gap-6"><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Faction</label><select value={selectedTeamId} onChange={(e) => setSelectedTeamId(e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none">{(Object.values(teams) as Team[]).map((t: Team) => (<option key={t.id} value={t.id}>{t.name}</option>))}</select></div><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Amount</label><input type="number" value={pointsInput} onChange={(e) => setPointsInput(parseInt(e.target.value))} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none" /></div></div><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Reference</label><input type="text" value={reasonInput} onChange={(e) => setReasonInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none" placeholder="e.g. Scavenger Hunt" /></div><div><label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Comment (optional)</label><input type="text" value={commentInput} onChange={(e) => setCommentInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-yellow-500 outline-none" placeholder="Internal note" /></div><button onClick={() => updateTeamPoints(selectedTeamId, pointsInput, reasonInput, commentInput || undefined)} className="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 rounded-lg transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] uppercase tracking-widest text-base flex items-center justify-center gap-2"><Save size={18} /> Transaction Commit</button></div>
+                    </div>
+                    <div 
+                      className="md:col-span-2 bg-[#111] border border-white/10 rounded-xl p-8 flex items-center justify-between cursor-pointer"
+                      onMouseEnter={handleCardHover}
+                      onMouseLeave={handleCardLeave}
+                    >
+                      <div><h3 className="text-pink-400 font-bold font-cyber text-2xl mb-2">LIVE FX CONTROL</h3><p className="text-gray-500 text-sm font-mono">Trigger global particle systems and celebration effects.</p></div><button onClick={toggleConfetti} className="bg-pink-900/20 border border-pink-500/50 text-pink-400 hover:bg-pink-500 hover:text-white px-10 py-4 rounded-lg font-bold text-base transition-all uppercase tracking-widest flex items-center gap-3"><PlayCircle size={22} /> Deploy Confetti</button>
+                    </div>
+                </div>
+            )}
+
+            {/* --- DATABASE TAB --- */}
+            {activeTab === 'database' && (
+                <div className="flex h-full">
+                    <div className="w-80 bg-[#0c0c12] border-r border-white/10 flex flex-col shrink-0">
+                        <div className="p-6 border-b border-white/10 bg-[#111] flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Factions</h3>
+                            <button onClick={() => {
+                                const firstTeam = Object.values(teams)[0] as Team | undefined;
+                                setActiveTeamId(firstTeam?.id || null);
+                            }} className="text-xs text-purple-400 hover:text-white">Refresh</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {(Object.values(teams) as Team[]).map((team: Team) => (
+                                <button key={team.id} onClick={() => { setActiveTeamId(team.id); setEditingTeamId(team.id); }} className={`w-full text-left p-5 border-b border-white/5 hover:bg-white/5 transition-all group ${activeTeamId === team.id ? 'bg-purple-900/20 border-l-4 border-l-purple-500 pl-4' : 'border-l-4 border-l-transparent'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-lg overflow-hidden flex-shrink-0" style={{ backgroundColor: `${team.color}22` }}>
+                                            {team.logo && team.logo.startsWith('data:image/') ? (
+                                                <img src={team.logo} alt={team.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span>{team.logo || '🎮'}</span>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="font-bold text-white text-base truncate group-hover:text-purple-300 transition-colors">{team.name}</div>
+                                            <div className="text-[11px] text-gray-500 font-mono">Seed #{team.seed}</div>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-6 border-t border-white/10 bg-[#0f0f16] space-y-3">
+                            <div className="text-xs text-gray-500 font-bold uppercase tracking-widest">Create Team</div>
+                            <input value={teamDraft.name} onChange={(e) => setTeamDraft({ ...teamDraft, name: e.target.value })} placeholder="Name" className="w-full bg-black border border-white/10 text-white p-3 rounded text-sm focus:border-purple-500 outline-none" />
+                            <input value={teamDraft.id} onChange={(e) => setTeamDraft({ ...teamDraft, id: e.target.value })} placeholder="ID (optional)" className="w-full bg-black border border-white/10 text-white p-3 rounded text-sm focus:border-purple-500 outline-none" />
+                            <input value={teamDraft.color} onChange={(e) => setTeamDraft({ ...teamDraft, color: e.target.value })} type="color" className="w-full bg-black border border-white/10 text-white p-3 rounded text-sm focus:border-purple-500 outline-none h-11" />
+                            <input value={teamDraft.seed} onChange={(e) => setTeamDraft({ ...teamDraft, seed: parseInt(e.target.value) || 1 })} type="number" min={1} className="w-full bg-black border border-white/10 text-white p-3 rounded text-sm focus:border-purple-500 outline-none" />
+                            <textarea value={teamDraft.description} onChange={(e) => setTeamDraft({ ...teamDraft, description: e.target.value })} placeholder="Description" className="w-full bg-black border border-white/10 text-white p-3 rounded text-sm focus:border-purple-500 outline-none resize-none" />
+                            <button onClick={handleCreateTeam} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded uppercase tracking-widest text-sm flex items-center justify-center gap-2"><Plus size={16}/> Save Team</button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 bg-[#05050a] p-10 overflow-y-auto">
+                        {activeTeam ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-2 space-y-8">
+                                    <div className="bg-[#111] p-8 rounded-xl border border-white/10 space-y-6" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-purple-400 font-bold font-cyber text-2xl flex items-center gap-3"><Users size={22}/> Team Profile</h3>
+                                            <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">Live • {formatTimeAgo(lastSync)}</div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Name</label>
+                                                <input value={activeTeam.name} onChange={(e) => updateTeam && updateTeam(activeTeam.id, { name: e.target.value })} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-base focus:border-purple-500 outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Seed</label>
+                                                <input type="number" value={activeTeam.seed} onChange={(e) => updateTeam && updateTeam(activeTeam.id, { seed: parseInt(e.target.value) || 1 })} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-base focus:border-purple-500 outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Color</label>
+                                                <input type="color" value={activeTeam.color} onChange={(e) => updateTeam && updateTeam(activeTeam.id, { color: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg h-14 focus:border-purple-500 outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Logo (Emoji or Image URL)</label>
+                                                <div className="space-y-3">
+                                                    <div className="flex gap-2">
+                                                        <input 
+                                                            value={
+                                                                activeTeam.logo && activeTeam.logo.startsWith('data:') 
+                                                                    ? '✓ Image Uploaded' 
+                                                                    : (activeTeam.logo || '')
+                                                            }
+                                                            onChange={(e) => {
+                                                                const val = e.target.value.trim();
+                                                                // Only update if not showing the "Image Uploaded" state
+                                                                if (!val.includes('✓')) {
+                                                                    updateTeam && updateTeam(activeTeam.id, { logo: val || activeTeam.logo });
+                                                                }
+                                                            }}
+                                                            placeholder="🎮 Emoji or https://example.com/logo.png"
+                                                            className="flex-1 bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none" 
+                                                        />
+                                                        <label className="bg-purple-600 hover:bg-purple-500 border border-purple-500 px-4 py-3 rounded-lg text-white text-xs font-bold cursor-pointer transition-colors whitespace-nowrap">
+                                                            📤 Upload
+                                                            <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                                                        </label>
+                                                    </div>
+                                                    {activeTeam.logo && (
+                                                        <div className="w-full h-32 bg-gradient-to-br from-purple-900/20 to-black/80 border border-purple-500/50 rounded-lg flex items-center justify-center overflow-hidden">
+                                                            {activeTeam.logo.startsWith('data:image/') ? (
+                                                                <img 
+                                                                    src={activeTeam.logo} 
+                                                                    alt="Team Logo" 
+                                                                    className="w-full h-full object-contain p-2" 
+                                                                    onError={(e) => {
+                                                                        console.error('Image failed to load:', e);
+                                                                        e.currentTarget.style.display = 'none';
+                                                                        e.currentTarget.parentElement?.appendChild(
+                                                                            Object.assign(document.createElement('div'), {
+                                                                                textContent: '⚠️ Image corrupted',
+                                                                                className: 'text-xs text-red-500 text-center'
+                                                                            })
+                                                                        );
+                                                                    }}
+                                                                />
+                                                            ) : activeTeam.logo.startsWith('http') ? (
+                                                                <img 
+                                                                    src={activeTeam.logo} 
+                                                                    alt="Team Logo" 
+                                                                    className="w-full h-full object-contain p-2"
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.style.display = 'none';
+                                                                    }}
+                                                                />
+                                                            ) : (
+                                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                                    <div className="text-4xl">{activeTeam.logo}</div>
+                                                                    {activeTeam.logo.length > 30 && (
+                                                                        <div className="text-[10px] text-red-500 font-mono max-w-28 text-center break-all">
+                                                                            ⚠️ Invalid: {activeTeam.logo.substring(0, 20)}...
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-[10px] text-green-600 font-mono">✓ Auto-saves to database</div>
+                                                </div>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Description</label>
+                                                <textarea value={activeTeam.description} onChange={(e) => updateTeam && updateTeam(activeTeam.id, { description: e.target.value })} className="w-full h-28 bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none resize-none" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-[#111] p-8 rounded-xl border border-white/10" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
+                                        <div className="flex justify-between items-center mb-6">
+                                            <h3 className="text-yellow-400 font-bold font-cyber text-2xl flex items-center gap-3"><Crown size={22}/> Points & Breakdown</h3>
+                                            {(() => {
+                                                const total = activeTeam.breakdown?.reduce((s, b) => s + b.points, 0) ?? 0;
+                                                return (
+                                                    <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
+                                                        <span>Total: {total} pts</span>
+                                                        <button onClick={() => total !== 0 && updateTeamPoints(activeTeam.id, -total, 'reset to zero', 'reset to zero')} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Reset</button>
+                                                        {refreshTeamBreakdown && (
+                                                            <button onClick={() => refreshTeamBreakdown(activeTeam.id)} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Refresh Logs</button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="text-[11px] uppercase text-gray-600 font-bold block mb-2">Amount</label>
+                                                <input type="number" value={pointsInput} onChange={(e) => setPointsInput(parseInt(e.target.value))} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="text-[11px] uppercase text-gray-600 font-bold block mb-2">Reason</label>
+                                                <input value={reasonInput} onChange={(e) => setReasonInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" />
+                                            </div>
+                                            <div className="md:col-span-3">
+                                                <label className="text-[11px] uppercase text-gray-600 font-bold block mb-2">Comment (optional)</label>
+                                                <input value={commentInput} onChange={(e) => setCommentInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" />
+                                            </div>
+                                        </div>
+                                        <button onClick={() => updateTeamPoints(activeTeam.id, pointsInput, reasonInput, commentInput || undefined)} className="mt-4 w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 rounded-lg uppercase tracking-widest text-sm flex items-center justify-center gap-2"><Zap size={16}/> Apply Points</button>
+                                        <div className="mt-6 space-y-2 max-h-48 overflow-y-auto">
+                                            {(activeTeam.breakdown || []).slice().reverse().map((b, idx) => (
+                                                <div key={idx} className="flex flex-col gap-1 bg-white/5 border border-white/10 rounded px-3 py-2 text-sm text-gray-300">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-mono text-xs text-gray-500">{b.source}</span>
+                                                        <span className="font-bold text-white">{b.points >= 0 ? '+' : ''}{b.points}</span>
+                                                    </div>
+                                                    {(b.comment || b.updatedBy || b.createdAt) && (
+                                                        <div className="text-[10px] text-gray-500 font-mono flex justify-between gap-2">
+                                                            <span className="truncate">{b.comment || ''}</span>
+                                                            <span className="text-gray-600">{b.updatedBy || ''}</span>
+                                                            <span className="text-gray-600">{b.createdAt ? new Date(b.createdAt).toLocaleString() : ''}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                            {(!activeTeam.breakdown || activeTeam.breakdown.length === 0) && <div className="text-gray-600 text-sm">No breakdown yet.</div>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-6">
+                                    <div className="bg-[#111] p-8 rounded-xl border border-white/10" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
+                                        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Sparkles size={16}/> Live Identity</h4>
+                                        <div className="aspect-square rounded-xl border border-white/10 flex items-center justify-center overflow-hidden" style={{ background: `radial-gradient(circle at 30% 20%, ${activeTeam.color}55, transparent 60%), #0c0c12` }}>
+                                            {activeTeam.logo && activeTeam.logo.startsWith('data:image/') ? (
+                                                <img 
+                                                    src={activeTeam.logo} 
+                                                    alt="Team Logo" 
+                                                    className="w-full h-full object-contain p-2"
+                                                    onError={(e) => {
+                                                        console.error('Logo image failed to load');
+                                                        e.currentTarget.style.display = 'none';
+                                                    }}
+                                                />
+                                            ) : activeTeam.logo && activeTeam.logo.startsWith('http') ? (
+                                                <img 
+                                                    src={activeTeam.logo} 
+                                                    alt="Team Logo" 
+                                                    className="w-full h-full object-contain p-2"
+                                                    onError={(e) => {
+                                                        e.currentTarget.style.display = 'none';
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="text-6xl">{activeTeam.logo || '🎮'}</div>
+                                            )}
+                                        </div>
+                                        <div className="mt-4 text-center text-gray-400 font-mono text-xs">Tap logo above to update via URL or upload.</div>
+                                    </div>
+
+                                    <div className="bg-[#111] p-8 rounded-xl border border-white/10 space-y-4" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
+                                        <div className="flex justify-between items-center">
+                                            <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"><Terminal size={16}/> Danger Zone</h4>
+                                        </div>
+                                        <button onClick={async () => { if (deleteTeam && window.confirm('Delete this team?')) { await deleteTeam(activeTeam.id); setActiveTeamId(null); setEditingTeamId(null); } }} className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg uppercase tracking-widest text-sm">Delete Team</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-gray-600 font-mono">Select or create a team to manage.</div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -339,63 +1166,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Description / Flavor Text (Not Printed)</label>
                                             <textarea value={activeChallenge.description} onChange={(e) => handleChallengeUpdate('description', e.target.value)} className="w-full h-24 bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none resize-none" />
                                         </div>
-                                        
-                                        {/* --- GAME TYPE SELECTOR --- */}
-                                        <div className="p-4 border border-white/10 rounded-lg bg-black/50">
-                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                                <Gamepad2 size={16} /> INTERACTIVE MODULE
-                                            </label>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                {['none', 'sequence', 'memory', 'cipher', 'quiz'].map((type) => (
-                                                    <button
-                                                        key={type}
-                                                        onClick={() => handleChallengeUpdate('gameType', type)}
-                                                        className={`px-4 py-3 rounded text-xs font-bold uppercase border transition-all ${activeChallenge.gameType === type ? 'bg-cyan-900/30 border-cyan-500 text-cyan-400' : 'bg-black border-white/10 text-gray-500 hover:text-white'}`}
-                                                    >
-                                                        {type === 'none' ? 'SCAN ONLY' : type}
-                                                    </button>
-                                                ))}
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Problem / Riddle (Hidden until scanned)</label>
+                                            <input type="text" value={activeChallenge.question} onChange={(e) => handleChallengeUpdate('question', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" placeholder="e.g. Decode this binary..." />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Correct Answer</label>
+                                                <div className="flex items-center gap-2 bg-black border border-white/20 rounded-lg p-1 pr-3">
+                                                    <div className="p-3 bg-green-900/30 rounded"><CheckSquare size={16} className="text-green-500"/></div>
+                                                    <input type="text" value={activeChallenge.answer} onChange={(e) => handleChallengeUpdate('answer', e.target.value)} className="w-full bg-transparent text-white font-mono text-sm focus:outline-none" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Reward Points</label>
+                                                <input type="number" value={activeChallenge.points} onChange={(e) => handleChallengeUpdate('points', parseInt(e.target.value))} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" />
                                             </div>
                                         </div>
-
-                                        {/* --- CONFIG AREAS BASED ON TYPE --- */}
-                                        
-                                        {activeChallenge.gameType === 'quiz' && (
-                                            <div className="p-4 border border-yellow-500/30 bg-yellow-900/10 rounded-lg">
-                                                <label className="block text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                    <AlertCircle size={14}/> Quiz Configuration (JSON)
-                                                </label>
-                                                <p className="text-[10px] text-gray-400 mb-2">Define questions array. Correct index starts at 0.</p>
-                                                <textarea 
-                                                    value={quizConfigJson} 
-                                                    onChange={(e) => setQuizConfigJson(e.target.value)}
-                                                    onBlur={handleQuizJsonBlur}
-                                                    className="w-full h-48 bg-black border border-white/20 text-green-400 font-mono text-xs p-4 rounded-lg focus:border-yellow-500 outline-none resize-y" 
-                                                />
-                                            </div>
-                                        )}
-
-                                        {activeChallenge.gameType !== 'quiz' && (
-                                            <>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Problem / Riddle (Hidden until scanned)</label>
-                                                    <input type="text" value={activeChallenge.question} onChange={(e) => handleChallengeUpdate('question', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" placeholder="e.g. Decode this binary..." />
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-6">
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Correct Answer</label>
-                                                        <div className="flex items-center gap-2 bg-black border border-white/20 rounded-lg p-1 pr-3">
-                                                            <div className="p-3 bg-green-900/30 rounded"><CheckSquare size={16} className="text-green-500"/></div>
-                                                            <input type="text" value={activeChallenge.answer} onChange={(e) => handleChallengeUpdate('answer', e.target.value)} className="w-full bg-transparent text-white font-mono text-sm focus:outline-none" />
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Reward Points</label>
-                                                        <input type="number" value={activeChallenge.points} onChange={(e) => handleChallengeUpdate('points', parseInt(e.target.value))} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" />
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
                                     </div>
                                 </div>
 
@@ -403,9 +1190,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                 <div className="w-[350px] shrink-0">
                                     <div className="sticky top-10">
                                         <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><Printer size={16}/> Print Preview</h4>
+                                        
+                                        {/* CSS Scaled Preview of the Glitch Card */}
                                         <div className="bg-[#05050a] border-4 border-[#7c3aed] shadow-2xl relative overflow-hidden flex flex-col justify-between box-border" style={{ aspectRatio: '105/148' }}>
+                                            
+                                            {/* Background Glitch Noise Preview */}
                                             <div className="absolute inset-0 bg-[#0f0518] z-0"></div>
-                                            <div className="absolute inset-0 z-0 opacity-20" style={{ backgroundImage: `repeating-linear-gradient(45deg, #2e1065 0px, #2e1065 2px, #eab308 2px, #eab308 3px, #2e1065 3px, #2e1065 5px, #06b6d4 5px, #06b6d4 6px, #2e1065 6px, #2e1065 8px, #ef4444 8px, #ef4444 9px, #2e1065 9px, #2e1065 11px, #00f0b5 11px, #00f0b5 12px)` }}></div>
+                                            <div 
+                                                className="absolute inset-0 z-0 opacity-20"
+                                                style={{
+                                                    backgroundImage: `repeating-linear-gradient(45deg, #2e1065 0px, #2e1065 2px, #eab308 2px, #eab308 3px, #2e1065 3px, #2e1065 5px, #06b6d4 5px, #06b6d4 6px, #2e1065 6px, #2e1065 8px, #ef4444 8px, #ef4444 9px, #2e1065 9px, #2e1065 11px, #00f0b5 11px, #00f0b5 12px)`
+                                                }}
+                                            ></div>
+
+                                            {/* Header */}
                                             <div className="h-16 w-full flex flex-col justify-center items-center relative z-10 pt-4">
                                                 <div className="relative inline-block whitespace-nowrap">
                                                     <span className="absolute top-0 left-[-1px] font-cyber font-black text-2xl tracking-[0.2em] text-[#ff003c] opacity-80 mix-blend-screen">IT-VERSE</span>
@@ -413,11 +1211,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                     <span className="relative font-cyber font-black text-2xl tracking-[0.2em] text-white">IT-VERSE</span>
                                                 </div>
                                             </div>
+
+                                            {/* Content */}
                                             <div className="flex-1 w-full flex items-center justify-center relative z-10 px-4">
                                                 <div className="relative p-2 bg-white border border-purple-500">
                                                     <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=CHALLENGE:${activeChallenge.id}&color=000000&bgcolor=ffffff&margin=0`} className="w-24 h-24 rendering-pixelated" alt="QR" />
                                                 </div>
                                             </div>
+
+                                            {/* Footer: Problem Name */}
                                             <div className="h-20 w-full flex flex-col justify-center items-center px-3 relative z-10 text-center bg-white border-t-2 border-purple-600">
                                                 <div className="w-full py-2">
                                                     <div className="text-[6px] font-mono font-bold text-purple-900 uppercase tracking-[0.5em] mb-1">MISSION_OBJECTIVE</div>
@@ -425,6 +1227,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 </div>
                                             </div>
                                         </div>
+
                                         <button 
                                             onClick={openPrintStudio}
                                             className="w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 rounded-lg uppercase tracking-widest flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(124,58,237,0.4)] transition-all hover:scale-[1.02]"
@@ -440,15 +1243,171 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                 </div>
             )}
-            
-            {/* ... (Other Tabs like Tournaments, etc.) ... */}
+
+            {/* --- LIVE ARENA TAB --- */}
+            {activeTab === 'live-arena' && (
+                <div className="flex h-full">
+                    {/* List Sidebar */}
+                    <div className="w-80 bg-[#0c0c12] border-r border-white/10 flex flex-col shrink-0">
+                        <div className="p-6 border-b border-white/10 bg-[#111] flex justify-between items-center">
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Live Streams</h3>
+                            <button onClick={() => { setEditingStreamId('new'); setStreamDraft({ title: '', embed_url: '', thumbnail_url: '', thumbnail_mode: 'embed', game_category: '', tournament_id: '', status: 'scheduled', placement: 'recommended', team1_name: '', team1_logo: '', team1_score: 0, team2_name: '', team2_logo: '', team2_score: 0, description: '' }); setThumbnailFile(null); }} className="text-green-500 hover:text-white transition-colors" title="Create new stream"><Plus size={20}/></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {isLoadingStreams ? (
+                                <div className="p-6 text-gray-500 text-sm text-center">Loading streams...</div>
+                            ) : liveStreams.length === 0 ? (
+                                <div className="p-6 text-gray-600 text-sm text-center">No streams yet</div>
+                            ) : (
+                                liveStreams.map(s => (
+                                    <button key={s.id} onClick={() => { setEditingStreamId(s.id); setStreamDraft(s); setThumbnailFile(null); }} className={`w-full text-left p-5 border-b border-white/5 hover:bg-white/5 transition-all group ${editingStreamId === s.id ? 'bg-purple-900/20 border-l-4 border-l-purple-500 pl-4' : 'border-l-4 border-l-transparent'}`}>
+                                        <div className="font-bold text-white text-base group-hover:text-purple-300 transition-colors truncate">{s.title}</div>
+                                        <div className="text-xs text-gray-500 font-mono mt-1.5 flex justify-between items-center">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.status === 'live' ? 'bg-red-900/50 text-red-300' : s.status === 'scheduled' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-gray-900/50 text-gray-300'}`}>{s.status.toUpperCase()}</span>
+                                            <span className="text-purple-400">{s.placement.toUpperCase()}</span>
+                                        </div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Editor Area */}
+                    <div className="flex-1 bg-[#05050a] p-10 overflow-y-auto">
+                        {editingStreamId !== null && editingStreamId !== undefined ? (
+                            <div className="max-w-3xl space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="bg-[#111] p-8 rounded-xl border border-white/10 space-y-6">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <h3 className="text-purple-400 font-bold font-cyber text-2xl flex items-center gap-3"><Tv size={24}/> {editingStreamId === 'new' ? 'NEW STREAM' : 'STREAM CONFIG'}</h3>
+                                        {editingStreamId !== 'new' && <button onClick={() => setEditingStreamId(null)} className="p-2 hover:bg-white/5 rounded transition-colors text-gray-400 hover:text-white"><X size={20}/></button>}
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Stream Title</label>
+                                        <input type="text" value={streamDraft.title} onChange={(e) => setStreamDraft({...streamDraft, title: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" placeholder="e.g. Finals Championship"/>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Embed URL</label>
+                                        <input type="text" value={streamDraft.embed_url} onChange={(e) => {
+                                          let val = e.target.value.trim();
+                                          // Auto-extract URL from iframe tag if pasted
+                                          if (val.includes('<iframe') && val.includes('src=')) {
+                                            const srcMatch = val.match(/src=["']([^"']+)["']/);
+                                            if (srcMatch && srcMatch[1]) {
+                                              val = srcMatch[1];
+                                              console.log('✅ Extracted embed URL from iframe');
+                                            }
+                                          }
+                                          setStreamDraft({...streamDraft, embed_url: val});
+                                        }} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" placeholder="Paste YouTube/Twitch embed URL or full iframe code"/>\n                                        <p className="text-[10px] text-gray-500 mt-2">💡 Tip: Paste the embed URL or paste the full iframe code - we'll extract it automatically</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Description (Optional)</label>
+                                        <textarea value={streamDraft.description || ''} onChange={(e) => setStreamDraft({...streamDraft, description: e.target.value})} className="w-full h-20 bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none resize-none" placeholder="Stream description..."/>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Game Category (Optional)</label>
+                                            <input type="text" value={streamDraft.game_category || ''} onChange={(e) => setStreamDraft({...streamDraft, game_category: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none" placeholder="e.g. Valorant"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Tournament</label>
+                                            <select value={streamDraft.tournament_id || ''} onChange={(e) => setStreamDraft({...streamDraft, tournament_id: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none">
+                                                <option value="">None</option>
+                                                {events.map(evt => <option key={evt.id} value={evt.id}>{evt.title}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Status</label>
+                                            <select value={streamDraft.status} onChange={(e) => setStreamDraft({...streamDraft, status: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none">
+                                                <option value="scheduled">Scheduled</option>
+                                                <option value="live">Live</option>
+                                                <option value="ended">Ended</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Placement</label>
+                                            <select value={streamDraft.placement} onChange={(e) => setStreamDraft({...streamDraft, placement: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none">
+                                                <option value="hero">Hero Section</option>
+                                                <option value="recommended">Recommended</option>
+                                                <option value="previous">Previous Lives</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Thumbnail</label>
+                                        <div className="flex gap-3 mb-3">
+                                            <button type="button" onClick={() => setStreamDraft({...streamDraft, thumbnail_mode: 'embed'})} className={`flex-1 py-2 rounded font-bold uppercase tracking-wide text-sm transition-all ${streamDraft.thumbnail_mode === 'embed' ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400'}`}>Use Embed</button>
+                                            <button type="button" onClick={() => setStreamDraft({...streamDraft, thumbnail_mode: 'upload'})} className={`flex-1 py-2 rounded font-bold uppercase tracking-wide text-sm transition-all ${streamDraft.thumbnail_mode === 'upload' ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400'}`}>Upload</button>
+                                        </div>
+                                        {streamDraft.thumbnail_mode === 'embed' ? (
+                                            <div className="text-xs text-gray-500 p-3 bg-black/50 rounded border border-white/5">✓ Thumbnail will auto-sync from embed provider</div>
+                                        ) : (
+                                            <div className="flex gap-2">
+                                                <input type="file" accept="image/*" onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)} className="flex-1 text-xs text-gray-500 file:bg-purple-600 file:text-white file:border-0 file:rounded file:px-3 file:py-2 file:font-bold file:cursor-pointer file:uppercase file:tracking-wide" />
+                                                {streamDraft.thumbnail_url && <img src={streamDraft.thumbnail_url} alt="preview" className="w-16 h-16 rounded object-cover" />}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Score Editor for Live Matches */}
+                                    {editingStreamId && editingStreamId !== 'new' && (
+                                        <div className="bg-black/30 p-6 rounded-lg border border-white/10 space-y-4">
+                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">⚡ Live Score Control</h4>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{streamDraft.team1_name || 'Team 1'} Score</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={streamDraft.team1_score ?? 0} 
+                                                        onChange={(e) => setStreamDraft({...streamDraft, team1_score: parseInt(e.target.value) || 0})} 
+                                                        className="w-full bg-black border-2 border-purple-500/50 text-white p-3 rounded-lg text-2xl font-bold text-center focus:border-purple-500 outline-none transition-all"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{streamDraft.team2_name || 'Team 2'} Score</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={streamDraft.team2_score ?? 0} 
+                                                        onChange={(e) => setStreamDraft({...streamDraft, team2_score: parseInt(e.target.value) || 0})} 
+                                                        className="w-full bg-black border-2 border-cyan-500/50 text-white p-3 rounded-lg text-2xl font-bold text-center focus:border-cyan-500 outline-none transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-3 pt-6 border-t border-white/5">
+                                        <button onClick={saveStream} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg uppercase tracking-widest text-sm flex items-center justify-center gap-2"><Save size={16}/> {editingStreamId === 'new' ? 'Create Stream' : 'Save Scores & Stream'}</button>
+                                        {editingStreamId && editingStreamId !== 'new' && <button onClick={deleteStream} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg uppercase tracking-widest text-sm">Delete</button>}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center text-gray-600 font-mono h-full">
+                                <Tv size={48} className="mb-4 opacity-50"/>
+                                <p>Select or create a stream to customize</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ... Other Tabs ... */}
             {activeTab === 'tournaments' && (
                 <div className="flex h-full">
                     {/* ... (Existing Tournament logic) ... */}
                     <div className="w-80 bg-[#0c0c12] border-r border-white/10 flex flex-col shrink-0">
                         <div className="p-6 border-b border-white/10 bg-[#111]"><h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Active Events</h3></div>
                         <div className="flex-1 overflow-y-auto">{events.map(evt => (<button key={evt.id} onClick={() => setSelectedEventId(evt.id)} className={`w-full text-left p-5 border-b border-white/5 hover:bg-white/5 transition-all group ${selectedEventId === evt.id ? 'bg-purple-900/20 border-l-4 border-l-purple-500 pl-4' : 'border-l-4 border-l-transparent'}`}><div className="font-bold text-white text-base group-hover:text-purple-300 transition-colors truncate">{evt.title}</div><div className="text-xs text-gray-500 font-mono mt-1.5">{evt.game}</div></button>))}</div>
-                        <button className="p-6 border-t border-white/10 text-center text-sm font-bold text-purple-400 hover:text-white uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-2"><Plus size={16}/> Create Event</button>
+                        <button onClick={() => setShowCreateEvent(true)} className="p-6 border-t border-white/10 text-center text-sm font-bold text-purple-400 hover:text-white uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-2"><Plus size={16}/> Create Event</button>
                     </div>
 
                     <div className="flex-1 flex flex-col h-full bg-[#05050a] relative">
@@ -566,8 +1525,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       </div>
     </div>
+
+        {showCreateEvent && (
+            <div className="fixed inset-0 z-[1100] bg-black/80 backdrop-blur-lg flex items-center justify-center p-4">
+                <div className="w-full max-w-2xl bg-[#0b0b12] border border-white/10 rounded-2xl shadow-2xl p-8 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.12),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(6,182,212,0.12),transparent_35%)]"></div>
+                    <div className="relative z-10 space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-2xl font-cyber font-bold text-white">Create Event</h3>
+                                <p className="text-sm text-gray-500">Wire directly into live data; saves immediately.</p>
+                            </div>
+                            <button onClick={() => setShowCreateEvent(false)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white border border-white/10 transition-colors"><X size={22}/></button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2"><label className="text-xs uppercase text-gray-500 font-bold mb-2 block">Title</label><input value={eventDraft.title} onChange={(e) => setEventDraft({ ...eventDraft, title: e.target.value })} className="w-full bg-black border border-white/15 text-white p-4 rounded-lg focus:border-purple-500 outline-none" /></div>
+                            <div><label className="text-xs uppercase text-gray-500 font-bold mb-2 block">Game</label><input value={eventDraft.game} onChange={(e) => setEventDraft({ ...eventDraft, game: e.target.value })} className="w-full bg-black border border-white/15 text-white p-4 rounded-lg focus:border-purple-500 outline-none" /></div>
+                            <div><label className="text-xs uppercase text-gray-500 font-bold mb-2 block">Short Name / ID</label><input value={eventDraft.shortName} onChange={(e) => setEventDraft({ ...eventDraft, shortName: e.target.value })} className="w-full bg-black border border-white/15 text-white p-4 rounded-lg focus:border-purple-500 outline-none" /></div>
+                            <div className="col-span-2"><label className="text-xs uppercase text-gray-500 font-bold mb-2 block">Banner Image</label><input value={eventDraft.image} onChange={(e) => setEventDraft({ ...eventDraft, image: e.target.value })} placeholder="https://..." className="w-full bg-black border border-white/15 text-white p-4 rounded-lg focus:border-purple-500 outline-none" /></div>
+                            <div className="col-span-2"><label className="text-xs uppercase text-gray-500 font-bold mb-2 block">Description</label><textarea value={eventDraft.description} onChange={(e) => setEventDraft({ ...eventDraft, description: e.target.value })} className="w-full h-24 bg-black border border-white/15 text-white p-4 rounded-lg focus:border-purple-500 outline-none resize-none" /></div>
+                            <div><label className="text-xs uppercase text-gray-500 font-bold mb-2 block">Bracket Type</label>
+                                <select value={eventDraft.bracketType} onChange={(e) => setEventDraft({ ...eventDraft, bracketType: e.target.value as 'single' | 'double' })} className="w-full bg-black border border-white/15 text-white p-4 rounded-lg focus:border-purple-500 outline-none">
+                                    <option value="single">Single Elimination</option>
+                                    <option value="double">Double Elimination</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setShowCreateEvent(false)} className="px-5 py-3 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:border-white/20">Cancel</button>
+                            <button onClick={handleCreateEvent} className="px-6 py-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold uppercase tracking-widest">Save Event</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
     </>
   );
 };
 
 export default AdminPanel;
+
+

@@ -362,17 +362,22 @@ const Scoreboard: React.FC<ScoreboardProps> = ({ teams }) => {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   const allowedIds = ['t1', 't2', 't3', 't4'];
-  const sortedTeams = (Object.values(teams) as Team[])
-    .filter(team => allowedIds.includes(team.id))
-    .sort((a, b) => {
-        const pointsA = 1000 - (a.seed * 50) + a.breakdown.reduce((acc, curr) => acc + curr.points, 0);
-        const pointsB = 1000 - (b.seed * 50) + b.breakdown.reduce((acc, curr) => acc + curr.points, 0);
-        return pointsB - pointsA; 
-    });
+    const sortedTeams = (Object.values(teams) as Team[])
+        .filter(team => allowedIds.includes(team.id))
+        .map(team => ({
+            team,
+            points: team.breakdown.reduce((acc, curr) => acc + curr.points, 0)
+        }))
+        .sort((a, b) => b.points - a.points);
 
-  const topTeam = sortedTeams[0];
-  const otherTeams = sortedTeams.slice(1);
-  const topPoints = 1000 - (topTeam.seed * 50) + topTeam.breakdown.reduce((acc, curr) => acc + curr.points, 0);
+    const topTeamEntry = sortedTeams[0];
+    const otherTeamEntries = sortedTeams.slice(1);
+    const topTeam = topTeamEntry?.team;
+    const topPoints = topTeamEntry?.points ?? 0;
+
+    if (!topTeam) {
+        return null;
+    }
 
   const toggleExpand = (id: string) => {
     setExpandedTeam(expandedTeam === id ? null : id);
@@ -398,12 +403,12 @@ const Scoreboard: React.FC<ScoreboardProps> = ({ teams }) => {
       </div>
 
       {/* --- RANK 1 HERO --- */}
-      <HeroCard 
-        team={topTeam} 
-        points={topPoints} 
-        isExpanded={expandedTeam === topTeam.id}
-        onToggle={() => toggleExpand(topTeam.id)}
-      />
+            <HeroCard 
+                team={topTeam} 
+                points={topPoints} 
+                isExpanded={expandedTeam === topTeam.id}
+                onToggle={() => toggleExpand(topTeam.id)}
+            />
 
       {/* --- THE REST --- */}
       <div className="flex flex-col relative z-10 mt-16">
@@ -413,20 +418,17 @@ const Scoreboard: React.FC<ScoreboardProps> = ({ teams }) => {
             <span className="text-right">Score Data</span>
         </div>
 
-        {otherTeams.map((team, idx) => {
-           const pts = 1000 - (team.seed * 50) + team.breakdown.reduce((acc, curr) => acc + curr.points, 0);
-           return (
-              <LeaderboardRow 
-                key={team.id}
-                team={team}
-                rank={idx + 2}
-                points={pts}
-                isExpanded={expandedTeam === team.id}
-                onToggle={() => toggleExpand(team.id)}
-                index={idx}
-              />
-           );
-        })}
+                {otherTeamEntries.map(({ team, points }, idx) => (
+                    <LeaderboardRow 
+                        key={team.id}
+                        team={team}
+                        rank={idx + 2}
+                        points={points}
+                        isExpanded={expandedTeam === team.id}
+                        onToggle={() => toggleExpand(team.id)}
+                        index={idx}
+                    />
+                ))}
       </div>
 
       {/* --- FOOTER --- */}

@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Lock, ArrowRight, Fingerprint, ScanEye, ShieldCheck, Key } from 'lucide-react';
 import gsap from 'gsap';
 import { Team } from '../types';
+import { ADMIN_CREDENTIALS } from '../constants';
 
 interface LoginViewProps {
     currentTeam: Team;
-    onLogin: (username: string) => void;
+    onLogin: (username: string, isAdmin: boolean) => void;
 }
 
 const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
@@ -42,6 +43,9 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
         setIsLoading(true);
         setStatus('scanning');
 
+        // Check if admin credentials
+        const isAdmin = username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password;
+
         // Simulate biometric scan delay
         setTimeout(() => {
             setStatus('success');
@@ -53,7 +57,7 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                 duration: 0.3
             });
             setTimeout(() => {
-                onLogin(username);
+                onLogin(username, isAdmin);
             }, 800);
         }, 1500);
     };
@@ -85,9 +89,13 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                         {status === 'success' ? (
                             <ShieldCheck size={40} className="text-green-500 animate-in zoom-in duration-300" />
                         ) : (
-                            <div className="relative">
+                            <div className="relative w-full h-full flex items-center justify-center">
                                 <div className="absolute inset-0 bg-[var(--team-color)] blur-lg opacity-20 animate-pulse" style={{ '--team-color': tc } as React.CSSProperties}></div>
-                                <div className="text-4xl">{currentTeam.logo}</div>
+                                {typeof currentTeam.logo === 'string' && currentTeam.logo.startsWith('data:') ? (
+                                    <img src={currentTeam.logo} alt={currentTeam.name} className="w-16 h-16 object-cover rounded-full relative z-10" />
+                                ) : (
+                                    <div className="text-4xl relative z-10">{currentTeam.logo}</div>
+                                )}
                             </div>
                         )}
                         

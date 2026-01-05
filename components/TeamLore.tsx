@@ -528,8 +528,12 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
                                     >
                                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 md:w-64 md:h-64 bg-[var(--team-color)] opacity-10 blur-[80px] rounded-full group-hover:opacity-30 transition-opacity duration-500" style={{ '--team-color': team.color } as React.CSSProperties}></div>
 
-                                        <div className="relative z-10 text-7xl md:text-9xl transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 filter drop-shadow-lg">
-                                            {team.logo}
+                                        <div className="relative z-10 transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 filter drop-shadow-lg">
+                                            {typeof team.logo === 'string' && team.logo.startsWith('data:') ? (
+                                                <img src={team.logo} alt={team.name} className="w-40 h-40 md:w-56 md:h-56 object-cover rounded-lg" />
+                                            ) : (
+                                                <div className="text-7xl md:text-9xl">{team.logo}</div>
+                                            )}
                                         </div>
                                         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[length:32px_32px] pointer-events-none"></div>
                                         <div className="absolute bottom-6 md:bottom-8 px-4 py-1 rounded bg-black/50 border border-gray-700 text-[10px] font-mono text-gray-400 group-hover:text-white group-hover:border-white transition-all">

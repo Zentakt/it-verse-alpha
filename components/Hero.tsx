@@ -316,7 +316,7 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
   }, []);
 
   const calculateTimeLeft = useCallback(() => {
-    // If torch is lit or we are in the middle of ignition cinematic, stop the normal timer
+    // If torch is lit (including auto-lit from countdown), stop showing the timer
     if (appState.isTorchLit || isIgniting) {
         return null;
     }
@@ -449,11 +449,12 @@ const Hero: React.FC<HeroProps> = ({ appState, onTorchLight }) => {
       const tl = calculateTimeLeft();
       setTimeLeft(tl);
       
-      // Check if time is up AND we haven't started ignition yet
-      if (!tl && !appState.isTorchLit && !isIgniting) {
+      // Check if time is up and we haven't started ignition yet
+      if (!appState.isTorchLit && !isIgniting) {
          const now = new Date().getTime();
          const end = new Date(appState.countdownEnd).getTime();
-         if (now >= end) {
+         // Only trigger ignition if countdown has reached zero
+         if (now >= end && tl === null) {
              playIgnitionSequence();
          }
       }

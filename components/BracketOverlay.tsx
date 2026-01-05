@@ -176,8 +176,12 @@ const BracketOverlay: React.FC<BracketOverlayProps> = ({ isOpen, onClose, gameNa
 
                 {/* Content */}
                 <div className="flex items-center gap-2 md:gap-4 overflow-hidden relative z-10">
-                    <div className={`text-lg md:text-2xl w-6 md:w-8 text-center shrink-0 transition-all duration-300 ${isWinner ? 'grayscale-0 scale-110' : 'grayscale group-hover/row:grayscale-0'}`}>
-                        {logo}
+                    <div className={`w-6 md:w-8 h-6 md:h-8 text-center shrink-0 transition-all duration-300 flex items-center justify-center ${isWinner ? 'grayscale-0 scale-110' : 'grayscale group-hover/row:grayscale-0'}`}>
+                        {typeof logo === 'string' && logo.startsWith('data:') ? (
+                            <img src={logo} alt={name} className="w-full h-full object-cover rounded" />
+                        ) : (
+                            <span className="text-lg md:text-2xl leading-none">{logo}</span>
+                        )}
                     </div>
                     
                     <div className={`

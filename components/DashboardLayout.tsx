@@ -699,7 +699,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProf
     { id: 'leaderboard', label: 'FACTION RANK', icon: Trophy },
     { id: 'scanner', label: 'UPLINK SCAN', icon: Scan },
     { id: 'tournaments', label: 'TOURNAMENTS', icon: User },
-    { id: 'login', label: 'LOGIN', icon: LogIn },
   ] as const;
 
   const handleNav = (view: AppState['currentView']) => {

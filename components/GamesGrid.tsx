@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
-import { GameEvent, Team } from '../types';
-import { Play, ChevronLeft, ChevronRight, Zap, Star, Tag, Trophy, ArrowLeft, ArrowRight } from 'lucide-react';
+import { GameEvent, Team, LiveStream } from '../types';
+import { Play, ChevronLeft, ChevronRight, Zap, Star, Tag, Trophy, ArrowLeft, ArrowRight, Monitor, Clock, X } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import EnhancedStreamView from './EnhancedStreamView';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -26,7 +27,13 @@ const TagPill: React.FC<{ label: string }> = ({ label }) => (
 
 const GLITCH_COLORS = ['#ff00de', '#00ffff', '#ffff00', '#ff0000', '#00ff00', '#7c3aed'];
 
-const GameCard: React.FC<{ item: GameEvent; onSelect: (evt: GameEvent) => void }> = ({ item, onSelect }) => {
+interface GameCardProps {
+    item: GameEvent;
+    onSelect: (evt: GameEvent) => void;
+    showLiveBadge?: boolean;
+}
+
+const GameCard: React.FC<GameCardProps> = ({ item, onSelect, showLiveBadge = true }) => {
     const [accentColor, setAccentColor] = useState('#9333ea');
 
     const handleMouseEnter = () => {
@@ -54,14 +61,13 @@ const GameCard: React.FC<{ item: GameEvent; onSelect: (evt: GameEvent) => void }
                     <img src={item.image} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     
                     {/* Live Badge */}
-                    <div className="absolute top-2 left-2">
-                        <LiveBadge />
-                    </div>
+                    {showLiveBadge && (
+                        <div className="absolute top-2 left-2">
+                            <LiveBadge />
+                        </div>
+                    )}
 
-                    {/* Viewer Count Overlay */}
-                    <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] font-bold text-white flex items-center gap-1">
-                        <span className="w-1 h-1 bg-red-500 rounded-full"></span> {Math.floor(Math.random() * 2000) + 500} viewers
-                    </div>
+                    {/* Viewer Count Overlay Removed */}
                     
                     {/* Hover Glitch Overlay */}
                     <div className="absolute inset-0 bg-white/10 pointer-events-none mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -215,7 +221,7 @@ const HeroShowcase: React.FC<HeroShowcaseProps> = ({ events, onPlay }) => {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-white font-bold text-sm md:text-base leading-none flex items-center gap-2">
-                                {activeEvent.game} <span className="text-blue-400 text-xs">✓</span>
+                                {activeEvent.game} <span className="text-blue-400 text-xs">âœ“</span>
                             </span>
                             <span className="text-gray-400 text-xs md:text-sm">Official Broadcast</span>
                         </div>
@@ -307,14 +313,16 @@ const HeroShowcase: React.FC<HeroShowcaseProps> = ({ events, onPlay }) => {
 
 // --- SCROLL ROW ---
 
+
 interface ScrollRowProps {
     title: string;
     subtitle?: string;
     items: GameEvent[];
     onSelect: (evt: GameEvent) => void;
+    showLiveBadge?: boolean;
 }
 
-const HorizontalRow: React.FC<ScrollRowProps> = ({ title, subtitle, items, onSelect }) => {
+const HorizontalRow: React.FC<ScrollRowProps> = ({ title, subtitle, items, onSelect, showLiveBadge = true }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const rowRef = useRef<HTMLDivElement>(null);
 
@@ -380,7 +388,7 @@ const HorizontalRow: React.FC<ScrollRowProps> = ({ title, subtitle, items, onSel
                 >
                     {items.map((item, i) => (
                         <div key={`${item.id}-${i}`} className="scroll-item flex-none snap-start">
-                            <GameCard item={item} onSelect={onSelect} />
+                            <GameCard item={item} onSelect={onSelect} showLiveBadge={showLiveBadge} />
                         </div>
                     ))}
                 </div>
@@ -397,30 +405,468 @@ interface GamesGridProps {
   onSelectEvent: (event: GameEvent) => void;
 }
 
-const GamesGrid: React.FC<GamesGridProps> = ({ events, onSelectEvent }) => {
+// --- LIVE STREAM CARD COMPONENT ---
+const LiveStreamCard: React.FC<{ stream: LiveStream; onSelect: (stream: LiveStream) => void }> = ({ stream, onSelect }) => {
+    const accentColor = '#a855f7';
     
-    // Duplicate events for scroll demo
-    const liveItems = [...events, ...events, ...events].map((e,i) => ({...e, id: `${e.id}_live_${i}`}));
+    return (
+        <div 
+            onClick={() => onSelect(stream)}
+            className="group cursor-pointer relative overflow-hidden transition-all duration-300 ease-out flex flex-col h-full"
+        >
+            {/* HOVER SHADOW BLOCK */}
+            <div 
+                className="absolute inset-0 z-0 transition-all duration-300 ease-out rounded-lg opacity-0 group-hover:opacity-100"
+                style={{ 
+                    backgroundColor: accentColor,
+                    transform: 'translate(-6px, 6px)',
+                }}
+            ></div>
+
+            {/* Thumbnail Container */}
+            <div className="relative z-10 flex flex-col gap-3 bg-[#0e0e10] p-0 transition-transform duration-300 ease-out group-hover:-translate-y-1 group-hover:translate-x-1 border border-white/5 group-hover:border-transparent rounded-lg h-full">
+                <div className="relative aspect-video bg-[#1f1f23] overflow-hidden rounded-t-lg">
+                    {stream.thumbnail_url ? (
+                        <img src={stream.thumbnail_url} alt={stream.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-purple-600/20 to-cyan-600/20 flex items-center justify-center">
+                            <Play size={48} className="text-white/50" />
+                        </div>
+                    )}
+                    
+                    {/* Status Badge */}
+                    {stream.status === 'live' && <div className="absolute top-2 left-2"><LiveBadge /></div>}
+                    {stream.status === 'scheduled' && (
+                        <div className="absolute top-2 left-2 inline-flex items-center gap-1.5 bg-yellow-600 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full" />
+                            UPCOMING
+                        </div>
+                    )}
+                    {stream.status === 'ended' && (
+                        <div className="absolute top-2 left-2 inline-flex items-center gap-1.5 bg-gray-700 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                            ENDED
+                        </div>
+                    )}
+
+                    {/* Hover Glitch Overlay */}
+                    <div className="absolute inset-0 bg-white/10 pointer-events-none mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px] opacity-20"></div>
+                    </div>
+                </div>
+                
+                {/* Meta Info */}
+                <div className="px-3 pb-4">
+                    <h4 className="text-base font-bold text-white leading-tight mb-1 truncate transition-colors duration-200 group-hover:text-purple-300">
+                        {stream.title}
+                    </h4>
+                    <div className="text-xs text-gray-400 mb-3">
+                        {stream.game_category || 'Esports'}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {stream.status === 'live' && <TagPill label="Live" />}
+                        {stream.game_category && <TagPill label={stream.game_category} />}
+                        <TagPill label={stream.placement === 'hero' ? 'Featured' : stream.placement} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- LIVE STREAM HERO SHOWCASE ---
+const LiveStreamShowcase: React.FC<{ streams: LiveStream[]; onSelect: (stream: LiveStream) => void }> = ({ streams, onSelect }) => {
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+
+    const heroRef = useRef<HTMLDivElement>(null);
+    const bgRef = useRef<HTMLDivElement>(null);
+    const textRef = useRef<HTMLDivElement>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const activeStream = streams[activeIndex % streams.length];
+
+    const handleNext = () => {
+        setActiveIndex(prev => (prev + 1) % streams.length);
+        setIsAutoPlaying(false);
+    };
+
+    const handlePrev = () => {
+        setActiveIndex(prev => (prev - 1 + streams.length) % streams.length);
+        setIsAutoPlaying(false);
+    };
+
+    useEffect(() => {
+        if (!isAutoPlaying) return;
+        timerRef.current = setTimeout(() => {
+            setActiveIndex(i => (i + 1) % streams.length);
+        }, 6000);
+        return () => timerRef.current && clearTimeout(timerRef.current);
+    }, [isAutoPlaying, activeIndex, streams.length]);
+
+    return (
+        <div
+            ref={heroRef}
+            className="relative w-full min-h-[400px] sm:min-h-[500px] md:min-h-[600px] lg:h-[700px] overflow-hidden group mb-6 sm:mb-8 md:mb-12"
+            onMouseEnter={() => setIsAutoPlaying(false)}
+            onMouseLeave={() => setIsAutoPlaying(true)}
+        >
+            {/* Animated Background with Blur */}
+            <div className="absolute inset-0">
+                <div ref={bgRef} key={`bg-${activeStream.id}`} className="absolute inset-0 transition-all duration-1000">
+                    {activeStream.thumbnail_url ? (
+                        <img
+                            src={activeStream.thumbnail_url}
+                            alt="Hero BG"
+                            className="w-full h-full object-cover scale-105 blur-sm"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-purple-900 via-[#0e0e10] to-cyan-900" />
+                    )}
+                    {/* Multi-layer gradient overlays */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#0e0e10] via-[#0e0e10]/80 to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e10] via-transparent to-[#0e0e10]/50"></div>
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_transparent_0%,_#0e0e10_70%)]"></div>
+                    {/* Scanline effect */}
+                    <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] pointer-events-none opacity-30"></div>
+                </div>
+            </div>
+
+            {/* Glowing accent line */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-80"></div>
+
+            {/* Main Content */}
+            <div className="absolute inset-0 flex items-center z-10">
+                <div className="w-full max-w-[1800px] mx-auto px-4 sm:px-6 md:px-12 lg:px-16 py-8 sm:py-12">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 items-center">
+                        
+                        {/* Left Side - Info */}
+                        <div ref={textRef} className="flex flex-col items-start order-2 lg:order-1">
+                            {/* Status Badges */}
+                            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4 md:mb-6">
+                                {activeStream.status === 'live' && (
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-red-500 rounded blur-md animate-pulse"></div>
+                                        <LiveBadge />
+                                    </div>
+                                )}
+                                {activeStream.game_category && (
+                                    <span className="text-purple-300 font-bold font-mono tracking-widest text-[10px] sm:text-xs uppercase bg-purple-500/20 backdrop-blur-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-purple-500/30">
+                                        {activeStream.game_category}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Title with glow effect */}
+                            <h2 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl xl:text-7xl font-black font-cyber text-white leading-[0.95] tracking-tight mb-3 sm:mb-4 md:mb-6 drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">
+                                {activeStream.title}
+                            </h2>
+
+                            {/* Scoreboard - Mobile Optimized */}
+                            {(activeStream.team1_name || activeStream.team2_name) && (
+                                <div className="w-full max-w-md mb-4 sm:mb-6 bg-black/40 backdrop-blur-sm rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 border border-white/10">
+                                    <div className="flex items-center justify-between gap-2 sm:gap-4">
+                                        {/* Team 1 */}
+                                        <div className="flex-1 flex items-center gap-2 sm:gap-3">
+                                            <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                                {activeStream.team1_logo ? (
+                                                    activeStream.team1_logo.startsWith('data:') || activeStream.team1_logo.startsWith('http') ? (
+                                                        <img src={activeStream.team1_logo} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-lg sm:text-xl">{activeStream.team1_logo}</span>
+                                                    )
+                                                ) : (
+                                                    <span className="text-xs sm:text-sm font-bold text-white/50">T1</span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] sm:text-xs md:text-sm font-bold text-white truncate max-w-[60px] sm:max-w-[80px] md:max-w-[100px]">
+                                                {activeStream.team1_name || 'Team 1'}
+                                            </span>
+                                        </div>
+
+                                        {/* Score */}
+                                        <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-1 sm:py-2 bg-black/60 rounded-lg">
+                                            <span className="text-xl sm:text-2xl md:text-3xl font-black font-mono text-white">{activeStream.team1_score ?? 0}</span>
+                                            <span className="text-sm sm:text-lg md:text-xl font-bold text-gray-600">:</span>
+                                            <span className="text-xl sm:text-2xl md:text-3xl font-black font-mono text-white">{activeStream.team2_score ?? 0}</span>
+                                        </div>
+
+                                        {/* Team 2 */}
+                                        <div className="flex-1 flex items-center justify-end gap-2 sm:gap-3">
+                                            <span className="text-[10px] sm:text-xs md:text-sm font-bold text-white truncate max-w-[60px] sm:max-w-[80px] md:max-w-[100px] text-right">
+                                                {activeStream.team2_name || 'Team 2'}
+                                            </span>
+                                            <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg bg-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                                {activeStream.team2_logo ? (
+                                                    activeStream.team2_logo.startsWith('data:') || activeStream.team2_logo.startsWith('http') ? (
+                                                        <img src={activeStream.team2_logo} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-lg sm:text-xl">{activeStream.team2_logo}</span>
+                                                    )
+                                                ) : (
+                                                    <span className="text-xs sm:text-sm font-bold text-white/50">T2</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Description - Hidden on very small screens */}
+                            <p className="hidden sm:block text-gray-400 text-sm md:text-base lg:text-lg leading-relaxed max-w-lg mb-4 sm:mb-6 md:mb-8 line-clamp-2 md:line-clamp-3">
+                                {activeStream.description || 'Watch the action unfold live'}
+                            </p>
+
+                            {/* CTA Button */}
+                            <button
+                                onClick={() => onSelect(activeStream)}
+                                className="group relative inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 md:px-8 py-2.5 sm:py-3 md:py-4 bg-gradient-to-r from-red-600 to-red-500 text-white font-black font-cyber tracking-wider uppercase rounded-lg overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_40px_rgba(239,68,68,0.5)] text-xs sm:text-sm md:text-base"
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-r from-red-500 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <Play size={18} fill="white" className="relative z-10 w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="relative z-10">Watch Now</span>
+                            </button>
+                        </div>
+
+                        {/* Right Side - Video Preview Card */}
+                        <div className="order-1 lg:order-2 flex justify-center lg:justify-end">
+                            <div
+                                onClick={() => onSelect(activeStream)}
+                                className="relative w-full max-w-[400px] lg:max-w-[500px] aspect-video rounded-xl sm:rounded-2xl overflow-hidden cursor-pointer group/preview shadow-[0_0_60px_rgba(0,0,0,0.8)] border border-white/10 hover:border-purple-500/50 transition-all duration-500 hover:scale-[1.02]"
+                            >
+                            {activeStream.thumbnail_url ? (
+                                <img
+                                    src={activeStream.thumbnail_url}
+                                    alt={activeStream.title}
+                                    className="w-full h-full object-cover transition-transform duration-700 group-hover/preview:scale-110"
+                                />
+                            ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-purple-600/30 to-cyan-600/30 flex items-center justify-center">
+                                    <Play size={64} className="text-white/30" />
+                                </div>
+                            )}
+                            
+                            {/* Play button overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/preview:opacity-100 transition-all duration-300">
+                                <div className="w-20 h-20 rounded-full bg-red-600 flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.6)] transform scale-90 group-hover/preview:scale-100 transition-transform duration-300">
+                                    <Play size={32} fill="white" className="text-white ml-1" />
+                                </div>
+                            </div>
+
+                            {/* Live indicator on thumbnail */}
+                            {activeStream.status === 'live' && (
+                                <div className="absolute top-4 left-4">
+                                    <LiveBadge />
+                                </div>
+                            )}
+
+                            {/* Bottom gradient */}
+                            <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+            {/* Navigation Arrows - Mobile Responsive */}
+            <div className="absolute bottom-4 sm:bottom-6 md:bottom-8 right-4 sm:right-6 md:right-16 z-20 flex items-center gap-2 sm:gap-3">
+                <button
+                    onClick={handlePrev}
+                    className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all active:scale-95"
+                >
+                    <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                </button>
+                <div className="flex gap-1.5 sm:gap-2 mx-2 sm:mx-4">
+                    {streams.slice(0, Math.min(streams.length, 5)).map((_, i) => (
+                        <button
+                            key={i}
+                            onClick={() => { setActiveIndex(i); setIsAutoPlaying(false); }}
+                            className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 ${activeIndex % streams.length === i ? 'bg-red-500 w-5 sm:w-8' : 'bg-white/30 w-1.5 sm:w-2 hover:bg-white/50'}`}
+                        />
+                    ))}
+                </div>
+                <button
+                    onClick={handleNext}
+                    className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all active:scale-95"
+                >
+                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- LIVE STREAM HORIZONTAL ROW ---
+const LiveStreamHorizontalRow: React.FC<{ 
+    title: string; 
+    subtitle?: string; 
+    streams: LiveStream[]; 
+    showEndedBadge?: boolean;
+    onSelect?: (stream: LiveStream) => void;
+}> = ({ title, subtitle, streams, showEndedBadge, onSelect }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (dir: 'left' | 'right') => {
+        if (!containerRef.current) return;
+        const amount = containerRef.current.clientWidth * 0.7;
+        containerRef.current.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' });
+    };
+
+    return (
+        <div className="relative w-full px-4 md:px-12 py-8 md:py-12">
+            {/* Header with Navigation */}
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h2 className="text-xl md:text-2xl font-black font-cyber text-white tracking-wide mb-1 flex items-center gap-3">
+                        <span className="w-1 h-6 bg-gradient-to-b from-red-500 to-purple-600 rounded-full"></span>
+                        {title}
+                    </h2>
+                    {subtitle && <p className="text-sm text-gray-500 font-mono tracking-widest uppercase ml-4">{subtitle}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => scroll('left')}
+                        className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-95"
+                    >
+                        <ChevronLeft size={20} />
+                    </button>
+                    <button
+                        onClick={() => scroll('right')}
+                        className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-95"
+                    >
+                        <ChevronRight size={20} />
+                    </button>
+                </div>
+            </div>
+
+            <div
+                ref={containerRef}
+                className="flex gap-4 overflow-x-auto pb-4 pt-2 snap-x snap-mandatory scrollbar-hide [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+                {streams.map((stream, i) => (
+                    <div key={`${stream.id}-${i}`} className="scroll-item flex-none snap-start w-72 sm:w-80">
+                        <LiveStreamCard stream={stream} onSelect={onSelect || (() => {})} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) => {
+    const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
+    const [isLoadingStreams, setIsLoadingStreams] = useState(true);
+    const [selectedStream, setSelectedStream] = useState<LiveStream | null>(null);
+
+    // Fetch live streams from API
+    useEffect(() => {
+        const fetchStreams = async () => {
+            try {
+                const response = await fetch('http://localhost:5000/api/live-streams');
+                if (response.ok) {
+                    const data = await response.json();
+                    setLiveStreams(data);
+                    console.log('âœ… Fetched live streams:', data.length);
+                }
+            } catch (error) {
+                console.error('Error fetching live streams:', error);
+            } finally {
+                setIsLoadingStreams(false);
+            }
+        };
+
+        fetchStreams();
+
+        // Set up WebSocket listener for real-time updates
+        let ws: WebSocket | null = null;
+        try {
+            ws = new WebSocket('ws://localhost:5000/api/ws');
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    if (message.type?.includes('live_stream')) {
+                        console.log('ðŸ”„ Live stream update via WebSocket, refetching...');
+                        fetchStreams();
+                    }
+                } catch (err) {
+                    console.error('WebSocket message error:', err);
+                }
+            };
+            ws.onerror = () => {
+                console.warn('WebSocket error, falling back to polling');
+            };
+        } catch (err) {
+            console.warn('WebSocket connection failed, using polling');
+        }
+
+        // Also set up polling as fallback (every 3 seconds)
+        const pollInterval = setInterval(() => {
+            fetchStreams();
+        }, 3000);
+
+        return () => {
+            if (ws) ws.close();
+            clearInterval(pollInterval);
+        };
+    }, []);
+
+    // Filter streams by placement
+    const heroStreams = liveStreams.filter(s => s.placement === 'hero');
+    const recommendedStreams = liveStreams.filter(s => s.placement === 'recommended');
+    const previousStreams = liveStreams.filter(s => s.placement === 'previous');
+    
+    // Duplicate for carousel effect if needed
+    const heroCarousel = heroStreams.length > 0 ? [...heroStreams, ...heroStreams] : [];
+    const recommendedCarousel = recommendedStreams.length > 0 ? [...recommendedStreams, ...recommendedStreams] : [];
+    const previousCarousel = previousStreams.length > 0 ? [...previousStreams, ...previousStreams] : [];
     
     return (
         <div className="min-h-screen bg-[#0e0e10] font-sans pb-20">
             
-            <HeroShowcase events={events} onPlay={onSelectEvent} />
+            {/* HERO SECTION - Featured Streams */}
+            {heroCarousel.length > 0 && (
+                <LiveStreamShowcase streams={heroCarousel} onSelect={setSelectedStream} />
+            )}
 
-            <HorizontalRow 
-                title="Live channels we think you'll like" 
-                items={liveItems}
-                onSelect={onSelectEvent}
-            />
+            {/* RECOMMENDED SECTION */}
+            {recommendedCarousel.length > 0 && (
+                <LiveStreamHorizontalRow 
+                    title="Live channels we think you'll like" 
+                    streams={recommendedCarousel}
+                    onSelect={setSelectedStream}
+                />
+            )}
 
-            {/* Removed Categories Section */}
+            {/* PREVIOUS LIVES SECTION */}
+            {previousCarousel.length > 0 && (
+                <LiveStreamHorizontalRow
+                    title="Previous Lives"
+                    streams={previousCarousel}
+                    showEndedBadge={true}
+                    onSelect={setSelectedStream}
+                />
+            )}
 
-            <HorizontalRow 
-                title="Recommended" 
-                items={liveItems.reverse()}
-                onSelect={onSelectEvent}
-            />
-
+            {/* Fallback to Events ONLY if not still loading streams and no streams configured */}
+            {!isLoadingStreams && liveStreams.length === 0 && (
+                <>
+                    <HeroShowcase events={events} onPlay={onSelectEvent} />
+                    <HorizontalRow
+                        title="Live channels we think you'll like"
+                        items={events}
+                        onSelect={onSelectEvent}
+                        showLiveBadge={true}
+                    />
+                </>
+            )}
+            
+            {/* ENHANCED LIVE STREAM VIEW */}
+            {selectedStream && (
+                <EnhancedStreamView 
+                    stream={selectedStream} 
+                    onClose={() => setSelectedStream(null)} 
+                />
+            )}
         </div>
     );
 };
