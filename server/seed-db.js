@@ -13,9 +13,19 @@ const seedData = async () => {
   try {
     console.log('🌱 Starting database seeding...');
     
-    // Clear existing data
+    // Clear existing data using DELETE instead of TRUNCATE to avoid ownership issues
     console.log('Clearing existing data...');
-    await pool.query('TRUNCATE app_state, team_breakdown, teams, events, matches, bracket_matches, challenges RESTART IDENTITY CASCADE;');
+    await pool.query('DELETE FROM team_breakdown;');
+    await pool.query('DELETE FROM bracket_matches;');
+    await pool.query('DELETE FROM matches;');
+    await pool.query('DELETE FROM challenges;');
+    await pool.query('DELETE FROM events;');
+    await pool.query('DELETE FROM teams;');
+    await pool.query('DELETE FROM app_state;');
+    
+    // Reset sequences
+    await pool.query('ALTER SEQUENCE app_state_id_seq RESTART WITH 1;');
+    await pool.query('ALTER SEQUENCE team_breakdown_id_seq RESTART WITH 1;');
     
     // App State
     console.log('Inserting app state...');
