@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS app_state (
 CREATE TABLE IF NOT EXISTS teams (
   id VARCHAR(50) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  logo VARCHAR(255),
+  logo TEXT,
   seed INTEGER,
   description TEXT,
   color VARCHAR(10),
