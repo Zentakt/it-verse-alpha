@@ -6,6 +6,14 @@ import { jsPDF } from 'jspdf';
 import { gsap } from 'gsap';
 import * as THREE from 'three';
 
+// Normalize image paths so relative uploads work in production
+const normalizeImageUrl = (url: string | null | undefined): string => {
+    if (!url) return '';
+    if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/')) return url;
+    return `/uploads/${url}`;
+};
+
 interface AdminPanelProps {
   appState: AppState;
   events: GameEvent[];
@@ -1563,7 +1571,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                             <div className="bg-[#111] p-8 rounded-xl border border-white/10">
                                                 <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2"><ImageIcon size={16}/> Event Visuals</h4>
                                                 <div className="flex flex-col md:flex-row gap-8 items-start">
-                                                    <div className="w-full md:w-80 aspect-video bg-black rounded-lg border border-white/10 overflow-hidden relative group"><img src={activeEvent.image} alt="Preview" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" /><div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50"><span className="text-xs font-mono text-white tracking-widest border border-white px-3 py-1.5 rounded">PREVIEW</span></div></div>
+                                                    <div className="w-full md:w-80 aspect-video bg-black rounded-lg border border-white/10 overflow-hidden relative group">
+                                                        <img
+                                                            src={normalizeImageUrl(activeEvent.image || activeEvent.banner)}
+                                                            alt="Preview"
+                                                            className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
+                                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                        />
+                                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50"><span className="text-xs font-mono text-white tracking-widest border border-white px-3 py-1.5 rounded">PREVIEW</span></div>
+                                                    </div>
                                                     <div className="flex-1 w-full space-y-6">
                                                         <div>
                                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Banner Image URL</label>

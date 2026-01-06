@@ -37,22 +37,22 @@ ormalizeImageUrl() helper to handle base64, relative, and absolute URLs
    `
 
 2. **On VPS, update nginx config:**
-   `ash
+   ```bash
    sudo cp nginx_https.conf /etc/nginx/sites-available/ite-verse
    sudo nginx -t
    sudo systemctl reload nginx
-   `
+   ```
 
 3. **Create uploads directory:**
-   `ash
-   mkdir -p /root/ite-verse/server/uploads
-   chmod 755 /root/ite-verse/server/uploads
-   `
+   ```bash
+   mkdir -p /var/www/app/server/uploads
+   chmod 755 /var/www/app/server/uploads
+   ```
 
 4. **Restart backend service:**
-   `ash
-   sudo systemctl restart ite-verse
-   `
+   ```bash
+   sudo systemctl restart it-verse-backend
+   ```
 
 5. **Build and deploy frontend:**
    `ash

@@ -408,7 +408,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
       <div className="w-full max-w-[1400px] min-h-[85vh] relative bg-[#0b0b14] z-10 shadow-2xl group/card flex flex-col">
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none rounded-lg">
             {(currentEvent.banner || currentEvent.image) && (
-                <div className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-luminosity grayscale transition-transform duration-[20s] ease-linear group-hover/card:scale-110" style={{ backgroundImage: `url(${currentEvent.banner || currentEvent.image})` }}></div>
+                <div className="absolute inset-0 bg-cover bg-center opacity-10 mix-blend-luminosity grayscale transition-transform duration-[20s] ease-linear group-hover/card:scale-110" style={{ backgroundImage: `url(${normalizeImageUrl(currentEvent.banner || currentEvent.image)})` }}></div>
             )}
             <div className="absolute inset-0 opacity-40 mix-blend-overlay" style={{ background: `radial-gradient(circle at 80% 20%, ${tc}, transparent 70%), linear-gradient(to bottom, transparent, #0b0b14)` }}></div>
             <div className="absolute inset-0 bg-gradient-to-r from-[#0b0b14] via-[#0b0b14]/90 to-transparent"></div>

@@ -10,7 +10,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 # Configuration
-SERVER_DIR="/root/ite-verse/server"
+SERVER_DIR="/var/www/app/server"
 FRONTEND_DIR="/var/www/app-frontend"
 NGINX_CONF="/etc/nginx/sites-available/ite-verse"
 
@@ -42,7 +42,7 @@ else
 fi
 
 echo -e "${BLUE}🔄 Step 6: Restarting Backend...${NC}"
-sudo systemctl restart ite-verse
+sudo systemctl restart it-verse-backend
 sleep 3
 
 echo -e "${GREEN}✅ Deployment Complete!${NC}"
