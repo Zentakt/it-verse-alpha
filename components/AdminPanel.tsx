@@ -334,9 +334,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if (activeTab === 'live-arena') {
       fetchLiveStreams();
       
-      // Set up WebSocket listener for real-time updates
-      try {
-        const ws = new WebSocket(`ws://${window.location.host}/api/ws`);
+            // Set up WebSocket listener for real-time updates (respect HTTPS)
+            try {
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                const ws = new WebSocket(`${wsProtocol}://${window.location.host}/api/ws`);
         ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);

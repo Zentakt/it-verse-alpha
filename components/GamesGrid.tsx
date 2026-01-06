@@ -780,7 +780,8 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
         // Set up WebSocket listener for real-time updates
         let ws: WebSocket | null = null;
         try {
-            ws = new WebSocket(`ws://${window.location.host}/api/ws`);
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            ws = new WebSocket(`${wsProtocol}://${window.location.host}/api/ws`);
             ws.onmessage = (event) => {
                 try {
                     const message = JSON.parse(event.data);
