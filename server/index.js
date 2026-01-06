@@ -588,20 +588,23 @@ app.delete('/api/streams/:id', async (req, res) => {
 // ===== FILE UPLOAD =====
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const fileUrl = `http://localhost:${process.env.PORT || 5000}/uploads/${req.file.filename}`;
+  // Use relative path so it works with nginx proxy
+  const fileUrl = `/uploads/${req.file.filename}`;
   res.json({ success: true, url: fileUrl, filename: req.file.filename });
 });
 
 app.post('/api/teams/:teamId/logo', upload.single('logo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const fileUrl = `http://localhost:${process.env.PORT || 5000}/uploads/${req.file.filename}`;
+  // Use relative path so it works with nginx proxy
+  const fileUrl = `/uploads/${req.file.filename}`;
   await pool.query('UPDATE teams SET logo = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [fileUrl, req.params.teamId]);
   res.json({ success: true, url: fileUrl });
 });
 
 app.post('/api/events/:eventId/image', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const fileUrl = `http://localhost:${process.env.PORT || 5000}/uploads/${req.file.filename}`;
+  // Use relative path so it works with nginx proxy
+  const fileUrl = `/uploads/${req.file.filename}`;
   await pool.query('UPDATE events SET image = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [fileUrl, req.params.eventId]);
   res.json({ success: true, url: fileUrl });
 });
