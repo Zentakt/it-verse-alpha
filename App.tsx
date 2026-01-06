@@ -102,7 +102,7 @@ const App: React.FC = () => {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const SYNC_INTERVAL = 3000; // 3 seconds for real-time feel
-  const WS_URL = `ws://${window.location.host}/api/ws`; // WebSocket endpoint for true real-time
+  const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws`; // WebSocket endpoint for true real-time (WSS for HTTPS, WS for HTTP)
   
   // Challenge State (Updated with Quiz and Valid Types)
   const [challenges, setChallenges] = useState<Challenge[]>([
