@@ -16,8 +16,17 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files with proper CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    res.set('Cache-Control', 'public, max-age=86400');
+  }
+}));
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -588,14 +597,14 @@ app.delete('/api/streams/:id', async (req, res) => {
 // ===== FILE UPLOAD =====
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  // Use relative path so it works with nginx proxy
+  // Return relative path for proper nginx proxy handling
   const fileUrl = `/uploads/${req.file.filename}`;
   res.json({ success: true, url: fileUrl, filename: req.file.filename });
 });
 
 app.post('/api/teams/:teamId/logo', upload.single('logo'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  // Use relative path so it works with nginx proxy
+  // Return relative path for proper nginx proxy handling
   const fileUrl = `/uploads/${req.file.filename}`;
   await pool.query('UPDATE teams SET logo = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [fileUrl, req.params.teamId]);
   res.json({ success: true, url: fileUrl });
@@ -603,7 +612,7 @@ app.post('/api/teams/:teamId/logo', upload.single('logo'), async (req, res) => {
 
 app.post('/api/events/:eventId/image', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  // Use relative path so it works with nginx proxy
+  // Return relative path for proper nginx proxy handling  
   const fileUrl = `/uploads/${req.file.filename}`;
   await pool.query('UPDATE events SET image = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [fileUrl, req.params.eventId]);
   res.json({ success: true, url: fileUrl });

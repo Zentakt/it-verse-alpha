@@ -23,6 +23,21 @@ const API_URL = '/api';
 
 type IntroStage = 'loader' | 'portal' | 'content';
 
+// Helper to normalize image URLs (handle base64, relative paths, and absolute URLs)
+const normalizeImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  // If it's base64 or already absolute, return as-is
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // If it's a relative path, return as-is (nginx will handle proxy)
+  if (url.startsWith('/')) {
+    return url;
+  }
+  // Otherwise, assume it's a filename and prepend /uploads/
+  return `/uploads/${url}`;
+};
+
 // Helper functions for localStorage
 const loadAppState = (): AppState => {
   try {

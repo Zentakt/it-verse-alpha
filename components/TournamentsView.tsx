@@ -16,6 +16,18 @@ interface TournamentsViewProps {
     events: GameEvent[];
 }
 
+// Helper to normalize image URLs
+const normalizeImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  if (url.startsWith('/')) {
+    return url;
+  }
+  return `/uploads/${url}`;
+};
+
 // Shader Code (Preserved)
 const GLITCH_VERTEX = `
   varying vec2 vUv;
@@ -386,8 +398,8 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
       />
 
       <div className="absolute top-20 right-[-10%] opacity-[0.03] pointer-events-none select-none fixed overflow-hidden w-[40rem] h-[40rem]" style={{ color: tc }}>
-        {typeof currentTeam.logo === 'string' && currentTeam.logo.startsWith('data:') ? (
-            <img src={currentTeam.logo} alt={currentTeam.name} className="w-full h-full object-cover" />
+        {typeof currentTeam.logo === 'string' && (currentTeam.logo.startsWith('data:') || currentTeam.logo.startsWith('http') || currentTeam.logo.startsWith('/')) ? (
+            <img src={normalizeImageUrl(currentTeam.logo)} alt={currentTeam.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         ) : (
             <div className="text-[40rem] font-black font-sans">{currentTeam.logo}</div>
         )}
@@ -419,8 +431,8 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                         <div className="relative w-20 h-20 md:w-32 md:h-32 mb-4 md:mb-6 group">
                             <div className="absolute inset-0 rounded-full p-[2px] bg-gradient-to-b to-transparent" style={{ backgroundImage: `linear-gradient(to bottom, ${tc}, transparent)` }}>
                                 <div className="w-full h-full rounded-full bg-[#0f0f1a] flex items-center justify-center relative overflow-hidden">
-                                    {typeof currentTeam.logo === 'string' && currentTeam.logo.startsWith('data:') ? (
-                                        <img src={currentTeam.logo} alt={currentTeam.name} className="w-full h-full object-cover rounded-full" />
+                                    {typeof currentTeam.logo === 'string' && (currentTeam.logo.startsWith('data:') || currentTeam.logo.startsWith('http') || currentTeam.logo.startsWith('/')) ? (
+                                        <img src={normalizeImageUrl(currentTeam.logo)} alt={currentTeam.name} className="w-full h-full object-cover rounded-full" onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerHTML = `<span class="text-4xl md:text-6xl select-none">🏆</span>`; }} />
                                     ) : (
                                         <span className="text-4xl md:text-6xl select-none transform group-hover:scale-110 transition-transform duration-500">{currentTeam.logo}</span>
                                     )}
@@ -503,7 +515,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                                         <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
                                             <div className={`w-8 h-8 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-2 md:mb-3 transition-colors duration-300 overflow-hidden ${isSelected ? 'bg-white text-[var(--hl)]' : 'bg-black/40 text-gray-400 group-hover:text-white'}`}>
                                                 {hasGameLogo ? (
-                                                    <img src={evt.gameLogo} alt={evt.game} className="w-full h-full object-contain p-1" />
+                                                    <img src={normalizeImageUrl(evt.gameLogo)} alt={evt.game} className="w-full h-full object-contain p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                 ) : (
                                                     <GameIcon size={18} className="md:w-6 md:h-6" />
                                                 )}
@@ -523,7 +535,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                     <div ref={mainContentRef} className="flex-1 flex flex-col min-h-0 relative will-change-transform">
                         <div className="relative h-56 md:h-80 w-full overflow-hidden shrink-0">
                             {(currentEvent.banner || currentEvent.image) && (
-                                <img src={currentEvent.banner || currentEvent.image} className="w-full h-full object-cover object-center opacity-60" alt="Banner" />
+                                <img src={normalizeImageUrl(currentEvent.banner || currentEvent.image)} className="w-full h-full object-cover object-center opacity-60" alt="Banner" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-r from-[#0b0b14] via-[var(--color)]/20 to-transparent mix-blend-multiply" style={{ '--color': tc } as React.CSSProperties}></div>
                             <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b14] to-transparent"></div>

@@ -62,10 +62,22 @@ const createLogoTexture = (logoContent: string, color: string) => {
     drawBase();
 
     // Check if image or text
-    if (logoContent.startsWith('http') || logoContent.startsWith('data:')) {
+    if (logoContent.startsWith('http') || logoContent.startsWith('data:') || logoContent.startsWith('/')) {
         const img = new Image();
         img.crossOrigin = "Anonymous";
         img.src = logoContent;
+        img.onerror = () => {
+            console.error('Failed to load team logo:', logoContent);
+            // Fallback to team emoji if image fails
+            ctx.font = '450px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('🏆', 512, 550);
+            tex.needsUpdate = true;
+        };
         img.onload = () => {
             // Re-draw base to clear
             drawBase();
