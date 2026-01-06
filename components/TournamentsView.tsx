@@ -503,7 +503,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                                         <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
                                             <div className={`w-8 h-8 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-2 md:mb-3 transition-colors duration-300 overflow-hidden ${isSelected ? 'bg-white text-[var(--hl)]' : 'bg-black/40 text-gray-400 group-hover:text-white'}`}>
                                                 {hasGameLogo ? (
-                                                    <img src={evt.gameLogo} alt={evt.game} className="w-full h-full object-cover" />
+                                                    <img src={evt.gameLogo} alt={evt.game} className="w-full h-full object-contain p-1" />
                                                 ) : (
                                                     <GameIcon size={18} className="md:w-6 md:h-6" />
                                                 )}
