@@ -465,7 +465,14 @@ const LiveStreamCard: React.FC<{ stream: LiveStream; onSelect: (stream: LiveStre
                     <div className="flex flex-wrap gap-1.5">
                         {stream.status === 'live' && <TagPill label="Live" />}
                         {stream.game_category && <TagPill label={stream.game_category} />}
-                        <TagPill label={stream.placement === 'hero' ? 'Featured' : stream.placement} />
+                        {(() => {
+                            const p = stream.placement;
+                            const includesHero = Array.isArray(p)
+                                ? p.includes('hero')
+                                : (typeof p === 'string' ? p.split(',').map(x => x.trim()).filter(Boolean).includes('hero') : false);
+                            const label = includesHero ? 'Featured' : (Array.isArray(p) ? p.join(', ') : (p || ''));
+                            return <TagPill label={label} />;
+                        })()}
                     </div>
                 </div>
             </div>
@@ -811,21 +818,25 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
         };
     }, []);
 
-    // Filter streams by placement - support both array and legacy string format
-    const heroStreams = liveStreams.filter(s => 
-        Array.isArray(s.placement) ? s.placement.includes('hero') : s.placement === 'hero'
-    );
-    const recommendedStreams = liveStreams.filter(s => 
-        Array.isArray(s.placement) ? s.placement.includes('recommended') : s.placement === 'recommended'
-    );
-    const previousStreams = liveStreams.filter(s => 
-        Array.isArray(s.placement) ? s.placement.includes('previous') : s.placement === 'previous'
-    );
-    
+    // Helper to check placement membership supporting arrays and legacy comma-separated strings
+    const placementIncludes = (placement: any, key: string) => {
+        if (Array.isArray(placement)) return placement.includes(key);
+        if (typeof placement === 'string') {
+            return placement.split(',').map(p => p.trim()).filter(Boolean).includes(key);
+        }
+        return false;
+    };
+
+    const heroStreams = liveStreams.filter(s => placementIncludes(s.placement, 'hero'));
+    const recommendedStreams = liveStreams.filter(s => placementIncludes(s.placement, 'recommended'));
+    const previousStreams = liveStreams.filter(s => placementIncludes(s.placement, 'previous'));
+
     // Log multi-placement streams for debugging
-    const multiPlacementStreams = liveStreams.filter(s => 
-        Array.isArray(s.placement) && s.placement.length > 1
-    );
+    const multiPlacementStreams = liveStreams.filter(s => {
+        if (Array.isArray(s.placement)) return s.placement.length > 1;
+        if (typeof s.placement === 'string') return s.placement.split(',').map(p => p.trim()).filter(Boolean).length > 1;
+        return false;
+    });
     if (multiPlacementStreams.length > 0) {
         console.log('🎬 Multi-placement streams:', multiPlacementStreams.map(s => ({
             title: s.title,
