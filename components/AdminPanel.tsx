@@ -1154,18 +1154,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                     <div className="bg-[#111] p-8 rounded-xl border border-white/10" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
                                         <div className="flex justify-between items-center mb-6">
                                             <h3 className="text-yellow-400 font-bold font-cyber text-2xl flex items-center gap-3"><Crown size={22}/> Points & Breakdown</h3>
-                                            {(() => {
-                                                const total = activeTeam.breakdown?.reduce((s, b) => s + b.points, 0) ?? 0;
-                                                return (
-                                                    <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
-                                                        <span>Total: {total} pts</span>
-                                                        <button onClick={() => total !== 0 && updateTeamPoints(activeTeam.id, -total, 'reset to zero', 'reset to zero')} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Reset</button>
-                                                        {refreshTeamBreakdown && (
-                                                            <button onClick={() => refreshTeamBreakdown(activeTeam.id)} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Refresh Logs</button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })()}
+                                            <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
+                                                <span>Total: {(activeTeam.breakdown?.reduce((s, b) => s + b.points, 0) ?? 0)} pts</span>
+                                                <button onClick={() => (activeTeam.breakdown?.length ?? 0) > 0 && updateTeamPoints(activeTeam.id, -(activeTeam.breakdown?.reduce((s, b) => s + b.points, 0) ?? 0), 'reset to zero', 'reset to zero')} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Reset</button>
+                                                {refreshTeamBreakdown && (
+                                                    <button onClick={() => refreshTeamBreakdown(activeTeam.id)} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Refresh Logs</button>
+                                                )}
+                                                <button
+                                                    onClick={async () => {
+                                                        if (window.confirm('Are you sure you want to clear ALL leaderboard logs for ALL teams? This cannot be undone.')) {
+                                                            try {
+                                                                await fetch('/api/leaderboard/clear-logs', { method: 'POST' });
+                                                                if (refreshTeamBreakdown) {
+                                                                    Object.keys(teams).forEach(teamId => refreshTeamBreakdown(teamId));
+                                                                }
+                                                                // Optionally show a notification
+                                                                alert('Leaderboard logs cleared!');
+                                                            } catch (err) {
+                                                                alert('Failed to clear logs.');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-white border border-red-700 font-bold"
+                                                >Clear All Logs</button>
+                                            </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>

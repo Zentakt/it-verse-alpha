@@ -1,3 +1,17 @@
+// Clear all leaderboard points logs
+app.post('/api/leaderboard/clear-logs', async (req, res) => {
+  try {
+    await pool.query('TRUNCATE team_breakdown');
+    // Broadcast to all clients for real-time sync
+    if (typeof broadcastToClients === 'function') {
+      broadcastToClients({ type: 'leaderboard_logs_cleared' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error clearing leaderboard logs:', err);
+    res.status(500).json({ error: 'Failed to clear leaderboard logs' });
+  }
+});
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
