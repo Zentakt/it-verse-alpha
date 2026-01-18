@@ -1027,54 +1027,55 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {introStage === 'content' && (
+        {introStage === 'content' && (
         <>
-            {!appState.selectedTeamId ? (
-                <div className="relative min-h-screen text-white overflow-x-hidden animate-in fade-in duration-1000">
-                    <Hero appState={appState} onTorchLight={handleTorchLight} />
-                    {appState.isTorchLit && (
-                    <div ref={teamSectionRef} className="animate-in fade-in duration-1000">
-                        <TeamLore onSelect={handleTeamSelect} teams={teams} />
-                        <Footer />
-                    </div>
-                    )}
-                </div>
-            ) : (
-                <DashboardLayout 
-                    currentTeam={teams[appState.selectedTeamId]} 
-                    userProfile={userProfile}
-                    currentView={appState.currentView}
-                    onNavigate={handleNavigate}
-                    onLogoClick={handleReturnToTeamSelect}
-                >
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
-                        {appState.currentView === 'games' && (
-                            <GamesGrid events={events} teams={teams} onSelectEvent={setSelectedEvent} />
-                        )}
-                        {appState.currentView === 'leaderboard' && (
-                            <Scoreboard teams={teams} />
-                        )}
-                        {appState.currentView === 'scanner' && (
-                            <QRScanner currentTeam={teams[appState.selectedTeamId]} challenges={challenges} />
-                        )}
-                        {appState.currentView === 'tournaments' && (
-                            <TournamentsView 
-                                onNavigate={handleNavigate} 
-                                currentTeam={teams[appState.selectedTeamId]}
-                                events={events}
-                            />
-                        )}
-                    </div>
+          {!appState.selectedTeamId ? (
+            <div className="relative min-h-screen text-white overflow-x-hidden animate-in fade-in duration-1000">
+              <Hero appState={appState} onTorchLight={handleTorchLight} />
+              {appState.isTorchLit && (
+              <div ref={teamSectionRef} className="animate-in fade-in duration-1000">
+                <TeamLore onSelect={handleTeamSelect} teams={teams} />
+              </div>
+              )}
+            </div>
+          ) : (
+            <DashboardLayout 
+              currentTeam={teams[appState.selectedTeamId]} 
+              userProfile={userProfile}
+              currentView={appState.currentView}
+              onNavigate={handleNavigate}
+              onLogoClick={handleReturnToTeamSelect}
+            >
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-screen">
+                {appState.currentView === 'games' && (
+                  <GamesGrid events={events} teams={teams} onSelectEvent={setSelectedEvent} />
+                )}
+                {appState.currentView === 'leaderboard' && (
+                  <Scoreboard teams={teams} />
+                )}
+                {appState.currentView === 'scanner' && (
+                  <QRScanner currentTeam={teams[appState.selectedTeamId]} challenges={challenges} />
+                )}
+                {appState.currentView === 'tournaments' && (
+                  <TournamentsView 
+                    onNavigate={handleNavigate} 
+                    currentTeam={teams[appState.selectedTeamId]}
+                    events={events}
+                  />
+                )}
+              </div>
 
-                    <EventModal 
-                        event={selectedEvent} 
-                        onClose={() => setSelectedEvent(null)} 
-                        teams={teams}
-                    />
-                </DashboardLayout>
-            )}
+              <EventModal 
+                event={selectedEvent} 
+                onClose={() => setSelectedEvent(null)} 
+                teams={teams}
+              />
+            </DashboardLayout>
+          )}
         </>
-      )}
+        )}
+        {/* Always show footer at the bottom of the app */}
+        <Footer />
     </>
   );
 };

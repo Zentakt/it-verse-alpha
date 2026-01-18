@@ -129,13 +129,10 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
     nebulaRef.current = nebula;
 
     // --- ANIMATION LOOP ---
-    let frameId = 0;
-
-    const animate = () => {
-        frameId = requestAnimationFrame(animate);
-        
+    let frameId: number = 0;
+    const wrappedAnimate = () => {
+        frameId = requestAnimationFrame(wrappedAnimate);
         speedRef.current += (targetSpeedRef.current - speedRef.current) * 0.05;
-
         // Move Stars
         const positions = stars.geometry.attributes.position.array as Float32Array;
         for(let i=0; i<starCount; i++) {
@@ -145,7 +142,6 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
             }
         }
         stars.geometry.attributes.position.needsUpdate = true;
-        
         // Move Nebula (Slower)
         const nebPos = nebula.geometry.attributes.position.array as Float32Array;
         for(let i=0; i<nebulaCount; i++) {
@@ -153,15 +149,12 @@ const CyberBackground: React.FC<CyberBackgroundProps> = ({ mode, colorTheme }) =
             if(nebPos[i*3+2] > 200) nebPos[i*3+2] = -200;
         }
         nebula.geometry.attributes.position.needsUpdate = true;
-
         // Rotation
         stars.rotation.z += 0.0005;
         nebula.rotation.z += 0.0002;
-
         renderer.render(scene, camera);
     };
-
-    animate();
+    frameId = requestAnimationFrame(wrappedAnimate);
 
     const handleResize = () => {
         camera.aspect = window.innerWidth / window.innerHeight;

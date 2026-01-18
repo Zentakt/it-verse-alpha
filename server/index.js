@@ -1,17 +1,3 @@
-// Clear all leaderboard points logs
-app.post('/api/leaderboard/clear-logs', async (req, res) => {
-  try {
-    await pool.query('TRUNCATE team_breakdown');
-    // Broadcast to all clients for real-time sync
-    if (typeof broadcastToClients === 'function') {
-      broadcastToClients({ type: 'leaderboard_logs_cleared' });
-    }
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Error clearing leaderboard logs:', err);
-    res.status(500).json({ error: 'Failed to clear leaderboard logs' });
-  }
-});
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -175,9 +161,18 @@ app.post('/api/countdown', async (req, res) => {
         `INSERT INTO app_state (countdown_end) VALUES ($1) RETURNING *`,
         [countdown_end]
       );
-      return res.json(newState.rows[0]);
+      res.json(newState.rows[0]);
+      // Broadcast to all clients for real-time sync
+      if (typeof broadcastToClients === 'function') {
+        broadcastToClients({ type: 'app_state_updated', data: { countdownEnd: countdown_end } });
+      }
+      return;
     }
     res.json(result.rows[0]);
+    // Broadcast to all clients for real-time sync
+    if (typeof broadcastToClients === 'function') {
+      broadcastToClients({ type: 'app_state_updated', data: { countdownEnd: countdown_end } });
+    }
   } catch (err) {
     console.error('Error updating countdown:', err);
     res.status(500).json({ error: 'Failed to update countdown' });
@@ -212,7 +207,12 @@ app.post('/api/torch/light', async (req, res) => {
 app.get('/api/events', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM events ORDER BY created_at DESC');
-    res.json(result.rows);
+    // Map snake_case to camelCase for frontend compatibility
+    const events = result.rows.map(evt => ({
+      ...evt,
+      gameLogo: evt.game_logo,
+    }));
+    res.json(events);
   } catch (err) {
     console.error('Error fetching events:', err);
     res.status(500).json({ error: 'Failed to fetch events' });
@@ -626,9 +626,10 @@ app.post('/api/teams/:teamId/logo', upload.single('logo'), async (req, res) => {
 
 app.post('/api/events/:eventId/image', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  // Return relative path for proper nginx proxy handling  
+  // Return relative path for proper nginx proxy handling
   const fileUrl = `/uploads/${req.file.filename}`;
-  await pool.query('UPDATE events SET image = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [fileUrl, req.params.eventId]);
+  // Update the game_logo field so the tournament tab displays the correct logo
+  await pool.query('UPDATE events SET game_logo = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [fileUrl, req.params.eventId]);
   res.json({ success: true, url: fileUrl });
 });
 
@@ -1102,6 +1103,21 @@ process.on('unhandledRejection', (err) => {
 
 // Keep the process running
 setInterval(() => {}, 1000);
+
+// Clear all leaderboard points logs
+app.post('/api/leaderboard/clear-logs', async (req, res) => {
+  try {
+    await pool.query('TRUNCATE team_breakdown');
+    // Broadcast to all clients for real-time sync
+    if (typeof broadcastToClients === 'function') {
+      broadcastToClients({ type: 'leaderboard_logs_cleared' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error clearing leaderboard logs:', err);
+    res.status(500).json({ error: 'Failed to clear leaderboard logs' });
+  }
+});
 
 
 

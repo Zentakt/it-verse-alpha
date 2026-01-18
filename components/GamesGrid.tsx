@@ -827,9 +827,20 @@ const GamesGrid: React.FC<GamesGridProps> = ({ events, teams, onSelectEvent }) =
         return false;
     };
 
+    // Debug: log all liveStreams and placement parsing
+    console.log('[DEBUG] liveStreams from API:', liveStreams);
+    liveStreams.forEach(s => {
+        console.log(`[DEBUG] Stream: ${s.title || s.id}, placement:`, s.placement, typeof s.placement);
+    });
+
     const heroStreams = liveStreams.filter(s => placementIncludes(s.placement, 'hero'));
     const recommendedStreams = liveStreams.filter(s => placementIncludes(s.placement, 'recommended'));
     const previousStreams = liveStreams.filter(s => placementIncludes(s.placement, 'previous'));
+
+    // Debug: log results of placement filters
+    console.log('[DEBUG] heroStreams:', heroStreams);
+    console.log('[DEBUG] recommendedStreams:', recommendedStreams);
+    console.log('[DEBUG] previousStreams:', previousStreams);
 
     // Log multi-placement streams for debugging
     const multiPlacementStreams = liveStreams.filter(s => {

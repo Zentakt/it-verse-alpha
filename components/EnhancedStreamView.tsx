@@ -66,7 +66,11 @@ const ScoreboardCanvas: React.FC<{ team1: { name: string; logo?: string; score: 
         // Animation loop
         let animationId: number;
         const animate = () => {
-            animationId = requestAnimationFrame(animate);
+            const wrappedAnimate = () => {
+                animate();
+                animationId = requestAnimationFrame(wrappedAnimate);
+            };
+            animationId = requestAnimationFrame(wrappedAnimate);
             
             // Rotate boxes
             scoreBox1.box.rotation.x += 0.005;
@@ -102,6 +106,9 @@ const ScoreboardCanvas: React.FC<{ team1: { name: string; logo?: string; score: 
         return () => {
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(animationId);
+            if (mountRef.current && renderer.domElement) {
+                mountRef.current.removeChild(renderer.domElement);
+            }
             renderer.dispose();
         };
     }, [isLive]);

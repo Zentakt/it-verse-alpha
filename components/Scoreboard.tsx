@@ -138,18 +138,20 @@ const HeroCard: React.FC<{ team: Team, points: number, onToggle: () => void, isE
         scene.add(mesh);
         
         const clock = new THREE.Clock();
-        let rId = 0;
-        const animate = () => {
-            rId = requestAnimationFrame(animate);
+        let rId: number = 0;
+        const wrappedAnimate = () => {
             mesh.material.uniforms.uTime.value = clock.getElapsedTime();
             renderer.render(scene, camera);
+            rId = requestAnimationFrame(wrappedAnimate);
         };
-        animate();
+        rId = requestAnimationFrame(wrappedAnimate);
 
         return () => {
             cancelAnimationFrame(rId);
+            if (canvasRef.current && renderer.domElement) {
+                canvasRef.current.removeChild(renderer.domElement);
+            }
             renderer.dispose();
-            if(canvasRef.current) canvasRef.current.innerHTML = '';
         };
     }, [team.color]);
 

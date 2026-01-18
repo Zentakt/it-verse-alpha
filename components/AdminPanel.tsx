@@ -76,6 +76,7 @@ const StreamEditor = ({ match, eventId, onSave }: { match: Match, eventId: strin
                 </div>
                 <button onClick={handleSave} className="bg-green-600 hover:bg-green-500 text-white px-6 rounded text-sm font-bold tracking-wide transition-colors flex items-center gap-2"><Save size={16} /> SAVE</button>
             </div>
+            {/* Status and placement controls removed from StreamEditor. Use only in main AdminPanel stream editor form. */}
         </div>
     );
 };
@@ -513,10 +514,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const deleteStream = async () => {
     if (!editingStreamId || !window.confirm('Are you sure you want to delete this stream?')) return;
     
-    try {
-      const response = await fetch(`http://localhost:5000/api/live-streams/${editingStreamId}`, {
-        method: 'DELETE'
-      });
+        try {
+            const response = await fetch(`/api/live-streams/${editingStreamId}`, {
+                method: 'DELETE'
+            });
       if (response.ok) {
         await fetchLiveStreams(); // Refresh list
         setEditingStreamId(null);
@@ -995,7 +996,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       onMouseEnter={handleCardHover}
                       onMouseLeave={handleCardLeave}
                     >
-                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Clock size={120} /></div><h3 className="text-purple-400 font-bold font-cyber text-2xl mb-8 flex items-center gap-3">GLOBAL_TIMER</h3><div className="space-y-6"><label className="text-sm text-gray-500 font-bold uppercase tracking-widest">Target Date & Time</label><input type="datetime-local" value={dateInput} onChange={(e) => setDateInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-5 rounded-lg font-mono text-lg focus:border-purple-500 focus:outline-none transition-colors" /><button onClick={() => updateCountdown(new Date(dateInput).toISOString())} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-5 rounded-lg transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] uppercase tracking-widest text-base">Sync Chronometer</button></div>
+                      <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Clock size={120} /></div><h3 className="text-purple-400 font-bold font-cyber text-2xl mb-8 flex items-center gap-3">GLOBAL_TIMER</h3><div className="space-y-6"><label className="text-sm text-gray-500 font-bold uppercase tracking-widest">Target Date & Time</label><input type="datetime-local" value={dateInput} onChange={(e) => setDateInput(e.target.value)} className="w-full bg-black border border-white/20 text-white py-3 pl-4 pr-10 rounded font-mono text-lg focus:border-purple-500 outline-none transition-colors" /><button onClick={() => updateCountdown(new Date(dateInput).toISOString())} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-5 rounded-lg transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] uppercase tracking-widest text-base">Sync Chronometer</button></div>
                     </div>
                     <div 
                       className="bg-[#111] border border-white/10 rounded-xl p-8 relative overflow-hidden group cursor-pointer"
@@ -1061,7 +1062,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                 <div className="lg:col-span-2 space-y-8">
                                     <div className="bg-[#111] p-8 rounded-xl border border-white/10 space-y-6" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
                                         <div className="flex items-center justify-between">
-                                            <h3 className="text-purple-400 font-bold font-cyber text-2xl flex items-center gap-3"><Users size={22}/> Team Profile</h3>
+                                            <h3 className="text-purple-400 font-bold font-cyber text-2xl mb-2">Team Profile</h3>
                                             <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">Live • {formatTimeAgo(lastSync)}</div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-6">
@@ -1075,7 +1076,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                             </div>
                                             <div>
                                                 <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Color</label>
-                                                <input type="color" value={activeTeam.color} onChange={(e) => updateTeam && updateTeam(activeTeam.id, { color: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg h-14 focus:border-purple-500 outline-none" />
+                                                <input type="color" value={activeTeam.color} onChange={(e) => updateTeam && updateTeam(activeTeam.id, { color: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded-lg h-11 focus:border-purple-500 outline-none" />
                                             </div>
                                             <div>
                                                 <label className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-2 block">Logo (Emoji or Image URL)</label>
@@ -1153,7 +1154,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
                                     <div className="bg-[#111] p-8 rounded-xl border border-white/10" onMouseEnter={handleCardHover} onMouseLeave={handleCardLeave}>
                                         <div className="flex justify-between items-center mb-6">
-                                            <h3 className="text-yellow-400 font-bold font-cyber text-2xl flex items-center gap-3"><Crown size={22}/> Points & Breakdown</h3>
+                                            <h3 className="text-yellow-400 font-bold font-cyber text-2xl mb-2">Points & Breakdown</h3>
                                             <div className="flex items-center gap-2 text-xs text-gray-500 font-mono">
                                                 <span>Total: {(activeTeam.breakdown?.reduce((s, b) => s + b.points, 0) ?? 0)} pts</span>
                                                 <button onClick={() => (activeTeam.breakdown?.length ?? 0) > 0 && updateTeamPoints(activeTeam.id, -(activeTeam.breakdown?.reduce((s, b) => s + b.points, 0) ?? 0), 'reset to zero', 'reset to zero')} className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10">Reset</button>
@@ -1181,15 +1182,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
-                                                <label className="text-[11px] uppercase text-gray-600 font-bold block mb-2">Amount</label>
+                                                <label className="block text-[11px] uppercase text-gray-600 font-bold mb-2">Amount</label>
                                                 <input type="number" value={pointsInput} onChange={(e) => setPointsInput(parseInt(e.target.value))} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="text-[11px] uppercase text-gray-600 font-bold block mb-2">Reason</label>
+                                                <label className="block text-[11px] uppercase text-gray-600 font-bold mb-2">Reason</label>
                                                 <input value={reasonInput} onChange={(e) => setReasonInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" />
                                             </div>
                                             <div className="md:col-span-3">
-                                                <label className="text-[11px] uppercase text-gray-600 font-bold block mb-2">Comment (optional)</label>
+                                                <label className="block text-[11px] uppercase text-gray-600 font-bold mb-2">Comment (optional)</label>
                                                 <input value={commentInput} onChange={(e) => setCommentInput(e.target.value)} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" />
                                             </div>
                                         </div>
@@ -1443,7 +1444,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Game Category (Optional)</label>
-                                            <input type="text" value={streamDraft.game_category || ''} onChange={(e) => setStreamDraft({...streamDraft, game_category: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none" placeholder="e.g. Valorant"/>
+                                            <input type="text" value={streamDraft.game_category || ''} onChange={(e) => setStreamDraft({...streamDraft, game_category: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Tournament</label>
@@ -1457,14 +1458,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Status</label>
-                                            <select value={streamDraft.status} onChange={(e) => setStreamDraft({...streamDraft, status: e.target.value})} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none">
+                                            <select
+                                                value={streamDraft.status}
+                                                onChange={async (e) => {
+                                                    const newStatus = e.target.value;
+                                                    setStreamDraft({ ...streamDraft, status: newStatus });
+                                                    if (editingStreamId && editingStreamId !== 'new') {
+                                                      await fetch(`/api/live-streams/${editingStreamId}/status`, {
+                                                        method: 'PUT',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ status: newStatus })
+                                                      });
+                                                      await fetchLiveStreams();
+                                                    }
+                                                }}
+                                                className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-sm focus:border-purple-500 outline-none"
+                                            >
                                                 <option value="scheduled">Scheduled</option>
                                                 <option value="live">Live</option>
                                                 <option value="ended">Ended</option>
                                             </select>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Placement Sections (Multi-Select)</label>
+                                        <div className="flex flex-col gap-2">
+                                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Placement Sections (Multi-Select)</label>
                                             <div className="space-y-3 bg-black/50 border border-white/20 p-4 rounded-lg">
                                                 {[
                                                     { value: 'hero', label: '🎬 Hero Section', desc: 'Large featured carousel at top' },
@@ -1497,54 +1513,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                             </p>
                                         </div>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Thumbnail</label>
-                                        <div className="flex gap-3 mb-3">
-                                            <button type="button" onClick={() => setStreamDraft({...streamDraft, thumbnail_mode: 'embed'})} className={`flex-1 py-2 rounded font-bold uppercase tracking-wide text-sm transition-all ${streamDraft.thumbnail_mode === 'embed' ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400'}`}>Use Embed</button>
-                                            <button type="button" onClick={() => setStreamDraft({...streamDraft, thumbnail_mode: 'upload'})} className={`flex-1 py-2 rounded font-bold uppercase tracking-wide text-sm transition-all ${streamDraft.thumbnail_mode === 'upload' ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400'}`}>Upload</button>
-                                        </div>
-                                        {streamDraft.thumbnail_mode === 'embed' ? (
-                                            <div className="text-xs text-gray-500 p-3 bg-black/50 rounded border border-white/5">✓ Thumbnail will auto-sync from embed provider</div>
-                                        ) : (
-                                            <div className="flex gap-2">
-                                                <input type="file" accept="image/*" onChange={(e) => setThumbnailFile(e.target.files?.[0] || null)} className="flex-1 text-xs text-gray-500 file:bg-purple-600 file:text-white file:border-0 file:rounded file:px-3 file:py-2 file:font-bold file:cursor-pointer file:uppercase file:tracking-wide" />
-                                                {streamDraft.thumbnail_url && <img src={streamDraft.thumbnail_url} alt="preview" className="w-16 h-16 rounded object-cover" />}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Score Editor for Live Matches */}
-                                    {editingStreamId && editingStreamId !== 'new' && (
-                                        <div className="bg-black/30 p-6 rounded-lg border border-white/10 space-y-4">
-                                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">⚡ Live Score Control</h4>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{streamDraft.team1_name || 'Team 1'} Score</label>
-                                                    <input 
-                                                        type="number" 
-                                                        value={streamDraft.team1_score ?? 0} 
-                                                        onChange={(e) => setStreamDraft({...streamDraft, team1_score: parseInt(e.target.value) || 0})} 
-                                                        className="w-full bg-black border-2 border-purple-500/50 text-white p-3 rounded-lg text-2xl font-bold text-center focus:border-purple-500 outline-none transition-all"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{streamDraft.team2_name || 'Team 2'} Score</label>
-                                                    <input 
-                                                        type="number" 
-                                                        value={streamDraft.team2_score ?? 0} 
-                                                        onChange={(e) => setStreamDraft({...streamDraft, team2_score: parseInt(e.target.value) || 0})} 
-                                                        className="w-full bg-black border-2 border-cyan-500/50 text-white p-3 rounded-lg text-2xl font-bold text-center focus:border-cyan-500 outline-none transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="flex gap-3 pt-6 border-t border-white/5">
-                                        <button onClick={saveStream} className="flex-1 bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-lg uppercase tracking-widest text-sm flex items-center justify-center gap-2"><Save size={16}/> {editingStreamId === 'new' ? 'Create Stream' : 'Save Scores & Stream'}</button>
-                                        {editingStreamId && editingStreamId !== 'new' && <button onClick={deleteStream} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg uppercase tracking-widest text-sm">Delete</button>}
-                                    </div>
                                 </div>
                             </div>
                         ) : (
@@ -1557,27 +1525,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
             )}
 
-            {/* ... Other Tabs ... */}
+            {/* --- TOURNAMENTS TAB --- */}
             {activeTab === 'tournaments' && (
                 <div className="flex h-full">
-                    {/* ... (Existing Tournament logic) ... */}
+                    {/* LEFT: Event List & Create Button */}
                     <div className="w-80 bg-[#0c0c12] border-r border-white/10 flex flex-col shrink-0">
-                        <div className="p-6 border-b border-white/10 bg-[#111]"><h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Active Events</h3></div>
-                        <div className="flex-1 overflow-y-auto">{events.map(evt => (<button key={evt.id} onClick={() => setSelectedEventId(evt.id)} className={`w-full text-left p-5 border-b border-white/5 hover:bg-white/5 transition-all group ${selectedEventId === evt.id ? 'bg-purple-900/20 border-l-4 border-l-purple-500 pl-4' : 'border-l-4 border-l-transparent'}`}><div className="font-bold text-white text-base group-hover:text-purple-300 transition-colors truncate">{evt.title}</div><div className="text-xs text-gray-500 font-mono mt-1.5">{evt.game}</div></button>))}</div>
-                        <button onClick={() => setShowCreateEvent(true)} className="p-6 border-t border-white/10 text-center text-sm font-bold text-purple-400 hover:text-white uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-2"><Plus size={16}/> Create Event</button>
+                        <div className="p-6 border-b border-white/10 bg-[#111] flex justify-between items-center">
+                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Active Events</h3>
+                            <button onClick={() => setShowCreateEvent(true)} className="text-green-500 hover:text-white transition-colors" title="Create new event"><Plus size={20}/></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            {events.map(evt => (
+                                <button key={evt.id} onClick={() => setSelectedEventId(evt.id)} className={`w-full text-left p-5 border-b border-white/5 hover:bg-white/5 transition-all group ${selectedEventId === evt.id ? 'bg-purple-900/20 border-l-4 border-l-purple-500 pl-4' : 'border-l-4 border-l-transparent'}`}>
+                                    <div className="font-bold text-white text-base group-hover:text-purple-300 transition-colors truncate">{evt.title}</div>
+                                    <div className="text-xs text-gray-500 font-mono mt-1.5">{evt.game}</div>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
+                    {/* RIGHT: Event Configuration */}
                     <div className="flex-1 flex flex-col h-full bg-[#05050a] relative">
                         {activeEvent ? (
                             <>
+                                {/* EVENT HEADER: Title, Status, Tabs */}
                                 <div className="h-24 border-b border-white/10 flex items-center px-8 gap-8 bg-[#0a0a0f] shrink-0">
                                     <h2 className="font-cyber text-3xl font-bold text-white truncate max-w-lg">{activeEvent.title}</h2>
                                     <div className="h-8 w-px bg-white/10"></div>
                                     <div className="flex gap-3">
-                                        {[ { id: 'config', label: 'Setup', icon: Settings }, { id: 'info', label: 'Info', icon: FileText }, { id: 'matches', label: 'Matches', icon: Tv }, { id: 'bracket', label: 'Visual Bracket', icon: LayoutTemplate } ].map(sub => (<button key={sub.id} onClick={() => setTournamentSubTab(sub.id as any)} className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-wide transition-all ${tournamentSubTab === sub.id ? 'bg-white text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}><sub.icon size={14} /> {sub.label}</button>))}
+                                        {[ { id: 'config', label: 'Setup', icon: Settings }, { id: 'info', label: 'Info', icon: FileText }, { id: 'matches', label: 'Matches', icon: Tv }, { id: 'bracket', label: 'Visual Bracket', icon: LayoutTemplate } ].map(sub => (
+                                            <button key={sub.id} onClick={() => setTournamentSubTab(sub.id as any)} className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold uppercase tracking-wide transition-all ${tournamentSubTab === sub.id ? 'bg-white text-black' : 'bg-white/5 text-gray-400 hover:text-white'}`}><sub.icon size={14} /> {sub.label}</button>
+                                        ))}
                                     </div>
                                 </div>
 
+                                {/* EVENT CONTENT: Config, Info, Bracket, Matches */}
                                 <div className="flex-1 overflow-y-auto p-10">
                                     {tournamentSubTab === 'config' && (
                                         <div className="max-w-5xl space-y-10 animate-in fade-in slide-in-from-bottom-2">
@@ -1604,7 +1586,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                                     className="flex-1 bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none"
                                                                     placeholder="https://... or upload below"
                                                                 />
-                                                                <label className={`bg-purple-600 hover:bg-purple-500 border border-purple-500 px-4 py-3 rounded-lg text-white text-xs font-bold cursor-pointer transition-colors whitespace-nowrap flex items-center gap-2 ${isUploadingBanner ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                                                                <label className={`bg-purple-600 hover:bg-purple-500 border border-purple-500 px-4 py-3 rounded-lg text-white text-xs font-bold cursor-pointer transition-colors whitespace-nowrap ${isUploadingBanner ? 'opacity-70 cursor-not-allowed' : ''}`}>
                                                                     <Upload size={18} />
                                                                     {isUploadingBanner ? 'Uploading...' : 'Upload'}
                                                                     <input
@@ -1767,7 +1749,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                 <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">Registration Status</h4>
                                                 <div className="flex gap-6">
                                                     {['Open', 'Pending', 'Closed'].map((s) => (
-                                                        <button key={s} onClick={() => updateEvent && updateEvent(activeEvent.id, { statusRegistration: s, details: { ...activeEvent.details, status: s } })} className={`px-8 py-4 rounded border text-sm font-bold uppercase tracking-wider transition-all ${(activeEvent.statusRegistration || activeEvent.details.status) === s ? (s==='Open'?'bg-yellow-900/20 border-yellow-500 text-yellow-500': (s==='Pending' ? 'bg-orange-900/20 border-orange-500 text-orange-500' : 'bg-red-900/20 border-red-500 text-red-500')) : 'bg-black border-white/10 text-gray-500'}`}>
+                                                        <button key={s} onClick={() => updateEvent && updateEvent(activeEvent.id, { statusRegistration: s, details: { ...activeEvent.details, status: s } })} className={`px-8 py-4 rounded border text-sm font-bold uppercase tracking-wider transition-all ${(activeEvent.statusRegistration || activeEvent.details.status) === s ? (s==='Open'?'bg-yellow-900/20 border-yellow-500 text-yellow-500' : (s==='Pending' ? 'bg-orange-900/20 border-orange-500 text-orange-500' : 'bg-red-900/20 border-red-500 text-red-500')) : 'bg-black border-white/10 text-gray-500'}`}>
                                                             {s}
                                                         </button>
                                                     ))}
@@ -1797,7 +1779,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                             <div className="grid grid-cols-2 gap-8 bg-[#111] p-8 rounded-xl border border-white/10">
                                                 <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Prize Pool</label><input type="text" value={activeEvent.details.prizePool} onChange={(e) => updateEventDetail('prizePool', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" /></div>
                                                 <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Entry Fee</label><input type="text" value={activeEvent.details.entryFee} onChange={(e) => updateEventDetail('entryFee', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-bold text-lg focus:border-purple-500 outline-none" /></div>
-                                                <div className="col-span-2"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Brief / Description</label><textarea value={activeEvent.details.brief} onChange={(e) => updateEventDetail('brief', e.target.value)} className="w-full h-32 bg-black border border-white/20 text-white p-4 rounded-lg text-base focus:border-purple-500 outline-none resize-none" /></div>
+                                                <div className="col-span-2"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Brief / Description</label><input type="text" value={activeEvent.details.brief} onChange={(e) => updateEventDetail('brief', e.target.value)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" /></div>
                                                 <div className="col-span-2"><label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Rules (Text)</label><textarea value={activeEvent.rulesText || activeEvent.details.rules.join(', ')} onChange={(e) => updateEvent && updateEvent(activeEvent.id, { rulesText: e.target.value, details: { ...activeEvent.details, rules: e.target.value.split(/\r?\n|,/).map((s: string) => s.trim()).filter(Boolean) } })} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg text-base focus:border-purple-500 outline-none h-28 resize-none" placeholder="Add rules separated by new lines or commas" /></div>
                                                 <div className="col-span-2 pt-6 border-t border-white/5">
                                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Calendar size={14}/> Event Schedule (Countdown Target)</label>
@@ -1805,46 +1787,36 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                         {['day', 'hour', 'min', 'sec'].map((k) => (
                                                             <div key={k}>
                                                                 <span className="text-[10px] uppercase text-gray-600 font-bold block mb-2">{k}</span>
-                                                                <input type="text" value={activeEvent.details.schedule[k as keyof typeof activeEvent.details.schedule]} onChange={(e) => updateEventDetail('schedule', { ...activeEvent.details.schedule, [k]: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-center text-lg focus:border-purple-500 outline-none" maxLength={2} />
+                                                                <input type="text" value={activeEvent.details.schedule[k as keyof typeof activeEvent.details.schedule]} onChange={(e) => updateEventDetail('schedule', { ...activeEvent.details.schedule, [k]: e.target.value })} className="w-full bg-black border border-white/20 text-white p-3 rounded font-mono text-sm focus:border-purple-500 outline-none" maxLength={2} />
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
 
-                                    {/* BRACKET TAB (Per Event) */}
-                                    {tournamentSubTab === 'bracket' && (
-                                        <div className="animate-in fade-in slide-in-from-bottom-2">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                                {activeEvent.bracket.map((match) => (
-                                                    <div key={match.id} className="bg-[#111] p-6 rounded-xl border border-white/10 hover:border-purple-500/50 transition-colors group relative overflow-hidden">
-                                                        <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-purple-500 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                                        <div className="flex justify-between items-center mb-6">
-                                                            <span className="text-xs font-mono text-gray-500 uppercase bg-black/50 px-3 py-1.5 rounded">ID: {match.id}</span>
-                                                            <select value={match.status} onChange={(e) => updateEventBracketMatch(activeEvent.id, match.id, match.p1.score, match.p2.score, e.target.value)} className="bg-black text-xs text-white font-bold border border-white/20 rounded px-3 py-1.5 outline-none uppercase tracking-wider focus:border-purple-500">
-                                                                <option value="scheduled">Scheduled</option><option value="live">Live</option><option value="finished">Finished</option>
-                                                            </select>
-                                                        </div>
-                                                        <div className="space-y-4">
-                                                            <div className={`flex items-center justify-between p-3 rounded ${match.p1.isWinner ? 'bg-green-900/10 border border-green-500/30' : 'bg-white/5 border border-transparent'}`}>
-                                                                <span className={`text-base font-bold ${match.p1.isWinner ? 'text-green-400' : 'text-gray-300'}`}>{teams[match.p1.id]?.name || match.p1.id}</span>
-                                                                <input type="number" value={match.p1.score ?? ''} placeholder="-" onChange={(e) => updateEventBracketMatch(activeEvent.id, match.id, parseInt(e.target.value) || 0, match.p2.score, match.status)} className="w-16 bg-black border border-white/20 text-center text-white rounded p-2 text-sm font-mono focus:border-purple-500 outline-none" />
-                                                            </div>
-                                                            <div className={`flex items-center justify-between p-3 rounded ${match.p2.isWinner ? 'bg-green-900/10 border border-green-500/30' : 'bg-white/5 border border-transparent'}`}>
-                                                                <span className={`text-base font-bold ${match.p2.isWinner ? 'text-green-400' : 'text-gray-300'}`}>{teams[match.p2.id]?.name || match.p2.id}</span>
-                                                                <input type="number" value={match.p2.score ?? ''} placeholder="-" onChange={(e) => updateEventBracketMatch(activeEvent.id, match.id, match.p1.score, parseInt(e.target.value) || 0, match.status)} className="w-16 bg-black border border-white/20 text-center text-white rounded p-2 text-sm font-mono focus:border-purple-500 outline-none" />
-                                                            </div>
-                                                        </div>
+                                            {/* --- BRACKET CONFIGURATION --- */}
+                                            <div className="bg-[#111] p-8 rounded-xl border border-white/10">
+                                                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">Bracket Configuration</h4>
+                                                <div className="flex flex-col md:flex-row gap-6">
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Match Duration (minutes)</label>
+                                                        <input type="number" value={activeEvent.details.matchDuration} onChange={(e) => updateEventDetail('matchDuration', parseInt(e.target.value) || 0)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" />
                                                     </div>
-                                                ))}
-                                                {activeEvent.bracket.length === 0 && <div className="text-gray-500 text-base p-6">No bracket data initialized for this event.</div>}
+                                                    <div className="flex-1">
+                                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Break Duration (minutes)</label>
+                                                        <input type="number" value={activeEvent.details.breakDuration} onChange={(e) => updateEventDetail('breakDuration', parseInt(e.target.value) || 0)} className="w-full bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none" />
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4">
+                                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Custom Bracket JSON</label>
+                                                    <textarea value={activeEvent.details.bracketJson} onChange={(e) => updateEventDetail('bracketJson', e.target.value)} className="w-full h-32 bg-black border border-white/20 text-white p-4 rounded-lg font-mono text-sm focus:border-purple-500 outline-none resize-none" placeholder='[{"id":"m1","teamA":"t1","teamB":"t2","round":1,"status":"scheduled"},...]' />
+                                                    <p className="text-xs text-gray-500 mt-2">⚠️ Advanced: Directly edit the bracket structure. Ensure valid JSON format.</p>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
 
-                                    {/* MATCHES TAB */}
+                                    {/* --- MATCHES TAB --- */}
                                     {tournamentSubTab === 'matches' && (
                                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                                             {activeEvent.matches.map(m => (

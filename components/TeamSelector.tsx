@@ -514,7 +514,11 @@ const TeamSelector: React.FC<TeamSelectorProps> = ({ onSelect }) => {
         });
 
         renderer.render(scene, camera);
-        frameIdRef.current = requestAnimationFrame(animate);
+        const wrappedAnimate = () => {
+            animate();
+            frameIdRef.current = requestAnimationFrame(wrappedAnimate);
+        };
+        frameIdRef.current = requestAnimationFrame(wrappedAnimate);
     };
     animate();
 
@@ -531,7 +535,9 @@ const TeamSelector: React.FC<TeamSelectorProps> = ({ onSelect }) => {
     return () => {
         window.removeEventListener('resize', handleResize);
         cancelAnimationFrame(frameIdRef.current);
-        if(mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
+        if (mountRef.current && renderer.domElement) {
+            mountRef.current.removeChild(renderer.domElement);
+        }
         renderer.dispose();
     };
   }, [activeIndex, teamKeys]);

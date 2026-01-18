@@ -843,7 +843,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ currentTeam, userProf
         </div>
 
         {children}
-        <Footer />
       </main>
     </div>
   );

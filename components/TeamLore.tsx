@@ -433,48 +433,49 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
     const particles = new THREE.Points(pGeo, pMat);
     scene.add(particles);
     const clock = new THREE.Clock();
+    let frameId = 0;
     const animate = () => {
-        const time = clock.getElapsedTime();
-        timeRef.current = time;
-        material.uniforms.uTime.value = time;
-        const sections = document.querySelectorAll('.team-section');
-        let closestId = activeTeamRef.current;
-        let minDistance = Infinity;
-        const centerScreen = window.innerHeight / 2;
-        sections.forEach((sec) => {
-            const rect = sec.getBoundingClientRect();
-            const sectionCenter = rect.top + (rect.height / 2);
-            const distance = Math.abs(sectionCenter - centerScreen);
-            if (distance < minDistance) {
-                minDistance = distance;
-                const tid = sec.getAttribute('data-team-id');
-                if (tid) closestId = tid;
-            }
-        });
-        if (closestId !== activeTeamRef.current) {
-            activeTeamRef.current = closestId;
-            setActiveTeamId(closestId);
+      const time = clock.getElapsedTime();
+      timeRef.current = time;
+      material.uniforms.uTime.value = time;
+      const sections = document.querySelectorAll('.team-section');
+      let closestId = activeTeamRef.current;
+      let minDistance = Infinity;
+      const centerScreen = window.innerHeight / 2;
+      sections.forEach((sec) => {
+        const rect = sec.getBoundingClientRect();
+        const sectionCenter = rect.top + (rect.height / 2);
+        const distance = Math.abs(sectionCenter - centerScreen);
+        if (distance < minDistance) {
+          minDistance = distance;
+          const tid = sec.getAttribute('data-team-id');
+          if (tid) closestId = tid;
         }
-        const currentLore = LORE_DATA[activeTeamRef.current] || LORE_DATA['t1'];
-        const params = currentLore.params;
-        const targetColor = new THREE.Color(teams[activeTeamRef.current]?.color || teams['t1'].color);
-        const lerpSpeed = 0.06;
-        material.uniforms.uColor.value.lerp(targetColor, lerpSpeed);
-        pMat.color.lerp(targetColor, lerpSpeed);
-        material.uniforms.uSpeed.value += (params.speed - material.uniforms.uSpeed.value) * lerpSpeed;
-        material.uniforms.uFrequency.value += (params.frequency - material.uniforms.uFrequency.value) * lerpSpeed;
-        material.uniforms.uAmplitude.value += (params.amplitude - material.uniforms.uAmplitude.value) * lerpSpeed;
-        scrollSpeedRef.current *= 0.92;
-        material.uniforms.uScrollWarp.value = scrollSpeedRef.current;
-        material.uniforms.uMouse.value.lerp(mousePos.current, 0.1);
-        camera.position.x = Math.sin(time * 0.1) * 0.5;
-        camera.position.y = (isMobile ? -8 : -6);
-        camera.position.z = (isMobile ? 8 : 5);
-        particles.rotation.z = time * 0.05;
-        renderer.render(scene, camera);
-        requestAnimationFrame(animate);
+      });
+      if (closestId !== activeTeamRef.current) {
+        activeTeamRef.current = closestId;
+        setActiveTeamId(closestId);
+      }
+      const currentLore = LORE_DATA[activeTeamRef.current] || LORE_DATA['t1'];
+      const params = currentLore.params;
+      const targetColor = new THREE.Color(teams[activeTeamRef.current]?.color || teams['t1'].color);
+      const lerpSpeed = 0.06;
+      material.uniforms.uColor.value.lerp(targetColor, lerpSpeed);
+      pMat.color.lerp(targetColor, lerpSpeed);
+      material.uniforms.uSpeed.value += (params.speed - material.uniforms.uSpeed.value) * lerpSpeed;
+      material.uniforms.uFrequency.value += (params.frequency - material.uniforms.uFrequency.value) * lerpSpeed;
+      material.uniforms.uAmplitude.value += (params.amplitude - material.uniforms.uAmplitude.value) * lerpSpeed;
+      scrollSpeedRef.current *= 0.92;
+      material.uniforms.uScrollWarp.value = scrollSpeedRef.current;
+      material.uniforms.uMouse.value.lerp(mousePos.current, 0.1);
+      camera.position.x = Math.sin(time * 0.1) * 0.5;
+      camera.position.y = (isMobile ? -8 : -6);
+      camera.position.z = (isMobile ? 8 : 5);
+      particles.rotation.z = time * 0.05;
+      renderer.render(scene, camera);
+      frameId = requestAnimationFrame(animate);
     };
-    animate();
+    frameId = requestAnimationFrame(animate);
     const handleResize = () => {
         const w = window.innerWidth;
         const h = window.innerHeight;
@@ -493,6 +494,7 @@ const TeamLore: React.FC<TeamLoreProps> = ({ onSelect, teams }) => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('scroll', handleScroll);
+        cancelAnimationFrame(frameId);
         if (mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
         renderer.dispose();
     };

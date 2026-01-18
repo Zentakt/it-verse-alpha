@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
 import { 
     ChevronLeft, Facebook, Twitter, Youtube, Dribbble, Trophy, 
@@ -19,13 +18,16 @@ interface TournamentsViewProps {
 // Helper to normalize image URLs
 const normalizeImageUrl = (url: string | null | undefined): string => {
   if (!url) return '';
+  // If it's base64 or already absolute, return as-is
   if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  if (url.startsWith('/')) {
-    return url;
+  // Always return absolute URL for /uploads/ paths
+  if (url.startsWith('/uploads/')) {
+    return `${window.location.origin}${url}`;
   }
-  return `/uploads/${url}`;
+  // Otherwise, assume it's a filename and prepend /uploads/ and site origin
+  return `${window.location.origin}/uploads/${url}`;
 };
 
 // Shader Code (Preserved)
@@ -67,9 +69,17 @@ const GLITCH_FRAGMENT = `
 const GlitchOverlay: React.FC<{ color: string, intensity: number }> = ({ color, intensity }) => {
     const mountRef = useRef<HTMLDivElement>(null);
     const materialRef = useRef<THREE.ShaderMaterial | null>(null);
+    const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
 
     useEffect(() => {
         if (!mountRef.current) return;
+        // Dispose previous renderer if exists
+        if (rendererRef.current) {
+            rendererRef.current.dispose();
+            if (rendererRef.current.domElement && rendererRef.current.domElement.parentNode) {
+                rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
+            }
+        }
         const w = mountRef.current.clientWidth;
         const h = mountRef.current.clientHeight;
         const scene = new THREE.Scene();
@@ -78,6 +88,7 @@ const GlitchOverlay: React.FC<{ color: string, intensity: number }> = ({ color, 
         renderer.setSize(w, h);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         mountRef.current.appendChild(renderer.domElement);
+        rendererRef.current = renderer;
         const geo = new THREE.PlaneGeometry(2, 2);
         const mat = new THREE.ShaderMaterial({
             vertexShader: GLITCH_VERTEX,
@@ -104,9 +115,12 @@ const GlitchOverlay: React.FC<{ color: string, intensity: number }> = ({ color, 
             window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(fid);
             renderer.dispose();
-            if (mountRef.current) mountRef.current.innerHTML = '';
+            if (renderer.domElement && renderer.domElement.parentNode) {
+                renderer.domElement.parentNode.removeChild(renderer.domElement);
+            }
+            rendererRef.current = null;
         };
-    }, []);
+    }, [color]); // Only recreate renderer if color changes
     useEffect(() => {
         if (materialRef.current) {
             materialRef.current.uniforms.uIntensity.value = intensity;
@@ -130,34 +144,20 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id || '');
   const [activeTab, setActiveTab] = useState<'info' | 'roster' | 'matches' | 'results'>('info');
   const [showBracket, setShowBracket] = useState(false);
-  
+
+  // Always define currentEvent before any hooks that use it
+    const currentEvent = events.find(e => e.id === selectedEventId) || events[0];
+
   // Transition State
   const [glitchIntensity, setGlitchIntensity] = useState(0);
   const [isGlitching, setIsGlitching] = useState(false);
   const [clipPathStyle, setClipPathStyle] = useState<React.CSSProperties>({});
-  
+
   const contentRef = useRef<HTMLDivElement>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
   const gamesScrollRef = useRef<HTMLDivElement>(null);
-  
-  const currentEvent = events.find(e => e.id === selectedEventId) || events[0];
-    const record = currentEvent?.teamRecord || { wins: 0, losses: 0, draws: 0, note: 'Awaiting battles' };
-    const recordTotal = Math.max(1, (record.wins || 0) + (record.losses || 0) + (record.draws || 0));
 
-  const formatStartTag = (iso?: string) => {
-      if (!iso) return 'TBD';
-      const d = new Date(iso);
-      if (isNaN(d.getTime())) return 'TBD';
-      return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase();
-  };
-
-  const formatEntryTag = (fee?: number | string | null) => {
-      if (fee === null || fee === undefined) return 'FREE';
-      if (typeof fee === 'number') return fee === 0 ? 'FREE' : `₱ ${fee}`;
-      const trimmed = `${fee}`.trim();
-      return trimmed.length === 0 ? 'FREE' : trimmed;
-  };
-
+  // Restore liveCountdown state and effect
   const [liveCountdown, setLiveCountdown] = useState({ day: '00', hour: '00', min: '00', sec: '00' });
 
   useEffect(() => {
@@ -184,6 +184,37 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
       const id = setInterval(updateCountdown, 1000);
       return () => clearInterval(id);
   }, [currentEvent.countdownEnd, currentEvent.startDate]);
+  
+    // Removed duplicate declaration of currentEvent
+    const record = currentEvent?.teamRecord || { wins: 0, losses: 0, draws: 0, note: 'Awaiting battles' };
+    const recordTotal = Math.max(1, (record.wins || 0) + (record.losses || 0) + (record.draws || 0));
+
+  const formatStartTag = (iso?: string) => {
+      if (!iso) return 'TBD';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return 'TBD';
+      return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).toUpperCase();
+  };
+
+  const formatEntryTag = (fee?: number | string | null) => {
+      if (fee === null || fee === undefined) return 'FREE';
+      if (typeof fee === 'number') return fee === 0 ? 'FREE' : `₱ ${fee}`;
+      const trimmed = `${fee}`.trim();
+      return trimmed.length === 0 ? 'FREE' : trimmed;
+  };
+
+// --- EVENT CARD LOGIC PATCH ---
+// This patch adds conditional rendering for "See Details" + countdown or "LIVE" indicator
+// depending on whether a livestream is active for the event.
+
+// Helper: Check if this event has an active livestream
+const hasActiveLivestream = (event) => {
+  // You may need to adjust this logic depending on your data shape
+  // For example, if you have a list of liveStreams in props or context:
+  // return liveStreams.some(s => s.tournament_id === event.id && s.status === 'live');
+  // For now, let's assume event.livestreamActive is set by parent or context
+  return event.livestreamActive === true;
+};
 
   // Helper to get icon based on game type
   const getGameIcon = (game: string) => {
@@ -508,19 +539,25 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                             {events.map((evt, i) => {
                                 const isSelected = selectedEventId === evt.id;
                                 const GameIcon = getGameIcon(evt.game);
-                                const hasGameLogo = evt.gameLogo && (evt.gameLogo.startsWith('data:') || evt.gameLogo.startsWith('http'));
+                                const hasGameLogo = typeof evt.gameLogo === 'string' && evt.gameLogo.length > 0;
+                                const logoUrl = normalizeImageUrl(evt.gameLogo);
                                 return (
                                     <button key={evt.id} onClick={() => handleGameSelect(evt.id)} className={`snap-start shrink-0 relative w-[90px] h-[120px] md:w-[120px] md:h-[160px] rounded-lg overflow-hidden transition-all duration-300 group ${isSelected ? 'shadow-[0_0_20px_var(--hl)] scale-105 z-10' : 'hover:scale-105 opacity-60 hover:opacity-100'}`} style={{ '--hl': tc } as React.CSSProperties}>
                                         <div className={`absolute inset-0 transition-colors duration-300 ${isSelected ? 'bg-[var(--hl)]' : 'bg-[#1a1a24]'}`}></div>
                                         <div className="absolute inset-0 flex flex-col items-center justify-center p-2">
                                             <div className={`w-8 h-8 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-2 md:mb-3 transition-colors duration-300 overflow-hidden ${isSelected ? 'bg-white text-[var(--hl)]' : 'bg-black/40 text-gray-400 group-hover:text-white'}`}>
                                                 {hasGameLogo ? (
-                                                    <img src={normalizeImageUrl(evt.gameLogo)} alt={evt.game} className="w-full h-full object-contain p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                                    <img src={logoUrl} alt={evt.game} className="w-full h-full object-contain p-1" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                 ) : (
                                                     <GameIcon size={18} className="md:w-6 md:h-6" />
                                                 )}
                                             </div>
                                             <div className={`text-[9px] md:text-xs font-bold uppercase tracking-wider text-center leading-tight ${isSelected ? 'text-white' : 'text-gray-400 group-hover:text-white'}`}>{evt.shortName}</div>
+                                            {/* Debug: Show the resolved image URL and raw evt.gameLogo */}
+                                            <div style={{ color: '#0ff', fontSize: '0.7em', wordBreak: 'break-all', marginTop: 2, maxWidth: 100 }}>
+                                                <div>URL: {logoUrl}</div>
+                                                <div>Raw: {String(evt.gameLogo)}</div>
+                                            </div>
                                         </div>
                                         {isSelected && <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full shadow-[0_0_5px_white]"></div>}
                                     </button>
@@ -542,7 +579,7 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                             
                             <div className="absolute bottom-0 left-0 w-full p-5 md:p-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
                                 <div className="max-w-2xl">
-                                    <div className="text-[10px] md:text-xs font-bold font-mono tracking-[0.2em] text-[var(--color)] mb-2 uppercase flex items-center gap-2" style={{ '--color': tc } as React.CSSProperties}><Trophy size={14} /> {currentEvent.shortName} Championship Series</div>
+                                    <div className="text-[10px] md:text-sm font-bold font-mono tracking-[0.2em] text-[var(--color)] mb-2 uppercase flex items-center gap-2" style={{ '--color': tc } as React.CSSProperties}><Trophy size={14} /> {currentEvent.shortName} Championship Series</div>
                                     <h2 className="text-3xl sm:text-4xl md:text-6xl font-black font-cyber text-white leading-none tracking-tight mb-4 drop-shadow-xl text-shadow-glow">
                                         {currentEvent.title}
                                     </h2>
@@ -586,6 +623,45 @@ const TournamentsView: React.FC<TournamentsViewProps> = ({ onNavigate, currentTe
                     </div>
                 </div>
             </div>
+        </div>
+      </div>
+
+      {/* Social Uplink Section */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-full max-w-[1400px] px-4 md:px-0">
+        <div className="bg-[#13131c] rounded-xl p-6 md:p-8 border border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <a href="https://www.facebook.com/itverseph" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1a1a24] text-gray-400 hover:text-white transition-colors">
+                                <Facebook size={20} />
+                            </div>
+                        </a>
+                        <a href="https://www.instagram.com/itverse.ph/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1a1a24] text-gray-400 hover:text-white transition-colors">
+                                {/* Inline SVG for Instagram icon, visually matches Lucide style */}
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                                </svg>
+                            </div>
+                        </a>
+                        <a href="https://www.tiktok.com/@itverseph" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#1a1a24] text-gray-400 hover:text-white transition-colors">
+                                {/* TikTok SVG icon inline */}
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12.75 2h3.25c.41 2.36 2.13 4.01 4 4.25v3.18c-1.13.11-2.27-.09-3.25-.57v7.89c0 4.13-2.75 5.8-5.13 5.8-2.13 0-4.12-1.47-4.12-4.12 0-2.62 2.01-4.12 4.12-4.12.36 0 .7.04 1.03.12v2.7c-.21-.07-.44-.11-.68-.11-1.01 0-1.62.77-1.62 1.41 0 .65.61 1.41 1.62 1.41 1.13 0 2.13-.82 2.13-2.8V2z" />
+                                </svg>
+                            </div>
+                        </a>
+                    </div>
+                    <div className="text-center text-xs md:text-sm font-mono text-gray-500">
+                        <div className="uppercase tracking-[0.15em] mb-1">Location</div>
+                        <div className="font-bold text-white">MANILA, PH</div>
+                    </div>
+                    <div className="text-center text-xs md:text-sm font-mono text-gray-500">
+                        <div className="uppercase tracking-[0.15em] mb-1">Contact Email</div>
+                        <div className="font-bold text-white">CONTACT@ITVERSE.COM</div>
+                    </div>
         </div>
       </div>
     </div>

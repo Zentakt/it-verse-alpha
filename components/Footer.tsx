@@ -206,13 +206,22 @@ const Footer: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
+  // Singleton pattern for renderer/canvas
+  let rendererSingleton: THREE.WebGLRenderer | null = null;
+  let canvasSingleton: HTMLCanvasElement | null = null;
+
   useEffect(() => {
     if (!mountRef.current) return;
+
+    // Defensive: Remove any existing canvas before creating a new one
+    while (mountRef.current.firstChild) {
+      mountRef.current.removeChild(mountRef.current.firstChild);
+    }
 
     // --- THREE.JS SETUP ---
     const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
-    
+
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x000000, 0.03);
 
@@ -220,10 +229,11 @@ const Footer: React.FC = () => {
     camera.position.set(0, -10, 5);
     camera.lookAt(0, 10, 0);
 
-    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    mountRef.current.appendChild(renderer.domElement);
+    rendererSingleton = new THREE.WebGLRenderer({ alpha: true, antialias: false });
+    rendererSingleton.setSize(width, height);
+    rendererSingleton.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    canvasSingleton = rendererSingleton.domElement;
+    mountRef.current.appendChild(canvasSingleton);
 
     // --- OBJECTS ---
     const planeGeo = new THREE.PlaneGeometry(60, 60, 64, 64);
@@ -264,7 +274,7 @@ const Footer: React.FC = () => {
     const animate = () => {
         frameId = requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
-        
+
         planeMat.uniforms.uTime.value = t * 0.5;
         particles.position.y = (t * 2) % 10;
         particles.rotation.z = t * 0.05;
@@ -273,7 +283,7 @@ const Footer: React.FC = () => {
         camera.position.x = Math.sin(t * 0.2) * 2;
         camera.lookAt(0, 15, 0);
 
-        renderer.render(scene, camera);
+        rendererSingleton!.render(scene, camera);
     };
     animate();
 
@@ -284,15 +294,21 @@ const Footer: React.FC = () => {
         const h = mountRef.current.clientHeight;
         camera.aspect = w/h;
         camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
+        rendererSingleton!.setSize(w, h);
     };
     window.addEventListener('resize', handleResize);
 
     return () => {
         window.removeEventListener('resize', handleResize);
         cancelAnimationFrame(frameId);
-        renderer.dispose();
-        mountRef.current?.removeChild(renderer.domElement);
+        if (rendererSingleton) {
+          rendererSingleton.dispose();
+        }
+        if (canvasSingleton && mountRef.current?.contains(canvasSingleton)) {
+          mountRef.current.removeChild(canvasSingleton);
+        }
+        rendererSingleton = null;
+        canvasSingleton = null;
     };
   }, []);
 
@@ -327,9 +343,9 @@ const Footer: React.FC = () => {
                     </div>
                     
                     <div className="flex gap-4 md:gap-6 perspective-1000">
-                        <SocialButton icon={Facebook} href="#" label="FACEBOOK" />
-                        <SocialButton icon={Instagram} href="#" label="INSTAGRAM" />
-                        <SocialButton icon={TikTokIcon} href="#" label="TIKTOK" />
+                        <SocialButton icon={Facebook} href="https://www.facebook.com/itverseph" label="FACEBOOK" />
+                        <SocialButton icon={Instagram} href="https://www.instagram.com/itverse.ph/" label="INSTAGRAM" />
+                        <SocialButton icon={TikTokIcon} href="https://www.tiktok.com/@itverseph" label="TIKTOK" />
                     </div>
 
                     <div className="flex gap-8 text-[10px] font-mono tracking-widest text-gray-500">

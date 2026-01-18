@@ -358,10 +358,10 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
 
     // --- ANIMATION LOOP ---
     const clock = new THREE.Clock();
-    let animationFrameId: number;
+    let animationFrameId: number = 0;
 
     const animate = () => {
-        animationFrameId = requestAnimationFrame(animate);
+        // animationFrameId = requestAnimationFrame(animate); // Remove recursive call, handled by wrappedAnimate
         const time = clock.getElapsedTime();
         const ignition = ignitionVal.current.value;
 
@@ -390,7 +390,11 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
 
         renderer.render(scene, camera);
     };
-    animate();
+    const wrappedAnimate = () => {
+        animate();
+        animationFrameId = requestAnimationFrame(wrappedAnimate);
+    };
+    animationFrameId = requestAnimationFrame(wrappedAnimate);
 
     // --- RESIZE ---
     const handleResize = () => {
@@ -409,10 +413,12 @@ const VoxelTorch: React.FC<VoxelTorchProps> = ({ isLit, isMobile = false, tilt =
         window.removeEventListener('resize', handleResize);
         resizeObs.disconnect();
         cancelAnimationFrame(animationFrameId);
+        if (mountRef.current && renderer.domElement) {
+            mountRef.current.removeChild(renderer.domElement);
+        }
         renderer.dispose();
         fireGeo.dispose();
         geometryBox.dispose();
-        if(mountRef.current) mountRef.current.innerHTML = '';
     };
 
   }, [isMobile, tilt]);

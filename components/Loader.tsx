@@ -113,6 +113,10 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
     const group = new THREE.Group();
     scene.add(group);
 
+    // CUBES GROUP (for orbiting cubes)
+    const cubesGroup = new THREE.Group();
+    scene.add(cubesGroup);
+
     // 1. PLASMA CORE (Shader Material)
     const coreGeo = new THREE.IcosahedronGeometry(2, 6); // High detail
     const coreMat = new THREE.ShaderMaterial({
@@ -124,63 +128,43 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
         },
         vertexShader: CORE_VERTEX_SHADER,
         fragmentShader: CORE_FRAGMENT_SHADER,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        wireframe: false
     });
+
+    // CORE MESH (Plasma Core)
     const core = new THREE.Mesh(coreGeo, coreMat);
     group.add(core);
 
-    // 2. ORBITAL RINGS (Torus Knots)
-    const ringGeo = new THREE.TorusGeometry(5, 0.02, 16, 100);
-    const ringMat = new THREE.MeshBasicMaterial({ 
-        color: 0xff00de, 
-        transparent: true, 
-        opacity: 0.4,
-        blending: THREE.AdditiveBlending 
-    });
-    
-    const rings: THREE.Mesh[] = [];
-    for(let i=0; i<3; i++) {
-        const ring = new THREE.Mesh(ringGeo, ringMat);
-        ring.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, 0);
-        group.add(ring);
-        rings.push(ring);
-    }
+        // RINGS (Orbiting Torus)
+        const rings = [];
+        for (let i = 0; i < 3; i++) {
+            const ringGeo = new THREE.TorusGeometry(3 + i, 0.15, 16, 100);
+            const ringMat = new THREE.MeshStandardMaterial({ color: 0x00ffff, metalness: 0.7, roughness: 0.2 });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            group.add(ring);
+            rings.push(ring);
+        }
 
-    // 3. HYPER TUNNEL (Particles moving towards camera)
-    const starGeo = new THREE.BufferGeometry();
-    const starCount = 2000;
-    const starPos = new Float32Array(starCount * 3);
-    const starSpeeds = new Float32Array(starCount);
+        // TUNNEL (Starfield Effect)
+        const starCount = 300;
+        const starGeo = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        const starSpeeds = [];
+        for (let i = 0; i < starCount; i++) {
+            starPositions[i * 3] = (Math.random() - 0.5) * 40;
+            starPositions[i * 3 + 1] = (Math.random() - 0.5) * 40;
+            starPositions[i * 3 + 2] = Math.random() * -80;
+            starSpeeds[i] = 0.1 + Math.random() * 0.2;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15 });
+        const tunnel = new THREE.Points(starGeo, starMat);
+        scene.add(tunnel);
 
-    for(let i=0; i<starCount; i++) {
-        starPos[i*3] = (Math.random() - 0.5) * 40; // X
-        starPos[i*3+1] = (Math.random() - 0.5) * 40; // Y
-        starPos[i*3+2] = (Math.random() - 0.5) * 100 - 50; // Z (deep background)
-        starSpeeds[i] = 0.1 + Math.random() * 0.5;
-    }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-    
-    const starMat = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.1,
-        transparent: true,
-        opacity: 0.5,
-        blending: THREE.AdditiveBlending
-    });
-    const tunnel = new THREE.Points(starGeo, starMat);
-    scene.add(tunnel);
-
-    // 4. FLOATING DATA BLOCKS (Cubes)
-    const cubesGroup = new THREE.Group();
-    group.add(cubesGroup);
-    
-    const cubeGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-    const cubeMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
-    
+    // 2. CUBES (Orbiting)
+    const cubeGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     for(let i=0; i<20; i++) {
-        const cube = new THREE.Mesh(cubeGeo, cubeMat);
+        const cube = new THREE.Mesh(cubeGeo, coreMat);
         // Random orbit position
         const angle = Math.random() * Math.PI * 2;
         const radius = 3 + Math.random() * 2;
@@ -194,10 +178,61 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
 
     // --- ANIMATION LOOP ---
     const clock = new THREE.Clock();
-    let frameId: number;
-
-    const animate = () => {
-        frameId = requestAnimationFrame(animate);
+    let frameId: number = 0;
+    const wrappedAnimate = () => {
+        const time = clock.getElapsedTime();
+        const p = progressRef.current / 100;
+        // 1. Animate Core Shader
+        coreMat.uniforms.uTime.value = time;
+        coreMat.uniforms.uIntensity.value = 0.5 + (p * 2.0); // Gets spikier
+        // 2. Rotate Core
+        core.rotation.y = time * 0.5;
+        core.rotation.z = time * 0.2;
+        // 3. Rotate Rings (Accelerate)
+        rings.forEach((ring, i) => {
+            ring.rotation.x += 0.01 * (i+1) * (1 + p*3);
+            ring.rotation.y += 0.01 * (i+1) * (1 + p*3);
+            // Pulse radius
+            const scale = 1 + Math.sin(time * 2 + i) * 0.05;
+            ring.scale.setScalar(scale);
+        });
+        // 4. Animate Tunnel (Warp Effect)
+        const positions = tunnel.geometry.attributes.position.array as Float32Array;
+        for(let i=0; i<starCount; i++) {
+            // Move Z towards camera
+            positions[i*3+2] += starSpeeds[i] * (1 + p * 20); // Massive speed up
+            // Reset if behind camera
+            if(positions[i*3+2] > 20) {
+                positions[i*3+2] = -80;
+                // Reshuffle X/Y for variety
+                positions[i*3] = (Math.random() - 0.5) * 40;
+                positions[i*3+1] = (Math.random() - 0.5) * 40;
+            }
+        }
+        tunnel.geometry.attributes.position.needsUpdate = true;
+        // 5. Cubes Orbit
+        cubesGroup.rotation.z -= 0.005 * (1 + p * 5);
+        cubesGroup.children.forEach((c, i) => {
+             c.rotation.x += 0.02;
+             c.rotation.y += 0.02;
+             // Converge to center near end
+             if (p > 0.9) {
+                 c.position.lerp(new THREE.Vector3(0,0,0), 0.05);
+             }
+        });
+        // 6. Camera Float
+        camera.position.x = Math.sin(time * 0.3) * 1.5;
+        camera.position.y = Math.cos(time * 0.4) * 1.5;
+        camera.lookAt(0,0,0);
+        // Shake
+        if (p > 0.8) {
+            camera.position.x += (Math.random() - 0.5) * 0.3;
+            camera.position.y += (Math.random() - 0.5) * 0.3;
+        }
+        renderer.render(scene, camera);
+        frameId = requestAnimationFrame(wrappedAnimate);
+    };
+    frameId = requestAnimationFrame(wrappedAnimate);
         const time = clock.getElapsedTime();
         const p = progressRef.current / 100;
         
@@ -257,8 +292,7 @@ const Loader: React.FC<LoaderProps> = ({ onComplete }) => {
         }
 
         renderer.render(scene, camera);
-    };
-    animate();
+    // (removed animate function and invocation, only wrappedAnimate is used)
 
     // --- GSAP TIMELINE ---
     const tl = gsap.timeline({
