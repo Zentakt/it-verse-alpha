@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Diagnostics: Check secrets presence
+      - name: "Diagnostics: Check secrets presence"
         shell: bash
         run: |
           missing=0
@@ -58,11 +58,20 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           script: |
             set -e
-            cd /var/www/ite-verse
+            cd /var/www/app
             git fetch origin
             git reset --hard origin/main
             npm ci
             npm run build
+            
+            # Deploy frontend
+            echo "Deploying frontend..."
+            sudo mkdir -p /var/www/app-frontend
+            sudo rm -rf /var/www/app-frontend/*
+            sudo cp -r dist/* /var/www/app-frontend/
+            
+            # Deploy backend
+            echo "Deploying backend..."
             cd server
             npm ci
             pm2 describe ite-server >/dev/null 2>&1 || pm2 start index.js --name ite-server
