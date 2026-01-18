@@ -12,13 +12,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Diagnostics: Check secrets presence
+        run: |
+          missing=0
+          for secret in VPS_HOST VPS_USER VPS_SSH_KEY VPS_PORT; do
+            if [ -z "${{ secrets[secret] }}" ]; then
+              echo "❌ Secret $secret is missing."
+              missing=1
+            else
+              echo "✅ Secret $secret is present."
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "❌ One or more required secrets are missing."
+            exit 1
+          fi
+          # Check SSH key format
+          if ! echo "${{ secrets.VPS_SSH_KEY }}" | grep -q "-----BEGIN"; then
+            echo "⚠️ Warning: VPS_SSH_KEY may not be in PEM format. Ensure it starts with '-----BEGIN'."
+          fi
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || '22' }}
+          port: ${{ secrets.VPS_PORT }}
           script: |
             set -e
             cd /var/www/ite-verse
