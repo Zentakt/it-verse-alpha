@@ -14,7 +14,7 @@ import EventModal from './components/EventModal';
 import AdminPanel from './components/AdminPanel';
 import CyberBackground from './components/CyberBackground';
 import Footer from './components/Footer';
-import LoginView from './components/LoginView'; 
+import LoginView from './components/LoginView';
 import { AppState, GameEvent, Match, Team, UserProfile, Challenge } from './types';
 import { INITIAL_EVENTS, TEAMS as INITIAL_TEAMS, INITIAL_PROFILE } from './constants';
 import confetti from 'canvas-confetti';
@@ -55,7 +55,7 @@ const loadAppState = (): AppState => {
   } catch (e) {
     console.error('Failed to load app state from localStorage', e);
   }
-  
+
   return {
     countdownEnd: new Date(Date.now() + 1000 * 15).toISOString(),
     isTorchLit: false,
@@ -99,10 +99,10 @@ const App: React.FC = () => {
   const [introStage, setIntroStage] = useState<IntroStage>('loader');
   const [showPortal, setShowPortal] = useState(false);
   const teamSectionRef = useRef<HTMLDivElement>(null);
-  
+
   // Check if accessing /admin route
   const isAdminRoute = typeof window !== 'undefined' && window.location.pathname === '/admin';
-  
+
   // App State - Load from localStorage
   const [appState, setAppState] = useState<AppState>(loadAppState);
 
@@ -112,36 +112,74 @@ const App: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<GameEvent | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_PROFILE);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Real-time sync interval ref and WebSocket ref
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const SYNC_INTERVAL = 3000; // 3 seconds for real-time feel
   const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/ws`; // WebSocket endpoint for true real-time (WSS for HTTPS, WS for HTTP)
-  
+
   // Challenge State (Updated with Quiz and Valid Types)
   const [challenges, setChallenges] = useState<Challenge[]>([
-      { id: 'c1', title: 'Neural Sync', description: 'Establish neural handshake protocol.', question: 'Follow the pattern.', answer: 'ignore', points: 150, gameType: 'sequence' },
-      { id: 'c2', title: 'Memory Fragment', description: 'Reconstruct corrupted data blocks.', question: 'Match the pairs.', answer: 'ignore', points: 200, gameType: 'memory' },
-      { id: 'c3', title: 'Firewall Breach', description: 'Decrypt the security key.', question: 'ENTER PASSKEY: 42', answer: '42', points: 100, gameType: 'cipher' },
-      { 
-          id: 'c4', 
-          title: 'System Aptitude', 
-          description: 'Prove your knowledge of the core systems.', 
-          question: 'Answer 5 Questions correctly.', 
-          answer: 'ignore', 
-          points: 300, 
-          gameType: 'quiz',
-          gameConfig: {
-              questions: [
-                  { q: "What is the primary function of a React Key?", options: ["Identify DOM elements", "Enhance Security", "Sort Arrays", "Manage State", "Debug Code"], correct: 0 },
-                  { q: "Which hook is used for side effects?", options: ["useState", "useContext", "useEffect", "useReducer", "useCallback"], correct: 2 },
-                  { q: "What does CSS 'z-index' control?", options: ["Opacity", "Zoom Level", "Stacking Order", "Animation Speed", "Grid Layout"], correct: 2 },
-                  { q: "Which status code indicates 'Not Found'?", options: ["200", "500", "301", "403", "404"], correct: 4 },
-                  { q: "In binary, what is 101?", options: ["3", "5", "7", "2", "6"], correct: 1 }
-              ]
-          }
+    { id: 'c1', title: 'Neural Sync', description: 'Establish neural handshake protocol.', question: 'Follow the pattern.', answer: 'ignore', points: 150, gameType: 'sequence' },
+    { id: 'c2', title: 'Memory Fragment', description: 'Reconstruct corrupted data blocks.', question: 'Match the pairs.', answer: 'ignore', points: 200, gameType: 'memory' },
+    { id: 'c3', title: 'Firewall Breach', description: 'Decrypt the security key.', question: 'ENTER PASSKEY: 42', answer: '42', points: 100, gameType: 'cipher' },
+    {
+      id: 'c4',
+      title: 'System Aptitude',
+      description: 'Prove your knowledge of the core systems.',
+      question: 'Answer 5 Questions correctly.',
+      answer: 'ignore',
+      points: 300,
+      gameType: 'quiz',
+      gameConfig: {
+        questions: [
+          { q: "What is the primary function of a React Key?", options: ["Identify DOM elements", "Enhance Security", "Sort Arrays", "Manage State", "Debug Code"], correct: 0 },
+          { q: "Which hook is used for side effects?", options: ["useState", "useContext", "useEffect", "useReducer", "useCallback"], correct: 2 },
+          { q: "What does CSS 'z-index' control?", options: ["Opacity", "Zoom Level", "Stacking Order", "Animation Speed", "Grid Layout"], correct: 2 },
+          { q: "Which status code indicates 'Not Found'?", options: ["200", "500", "301", "403", "404"], correct: 4 },
+          { q: "In binary, what is 101?", options: ["3", "5", "7", "2", "6"], correct: 1 }
+        ]
       }
+    },
+    {
+      id: 'c6',
+      title: 'Synapse Link',
+      description: 'Find the common link.',
+      question: '4 Images, 1 Word.',
+      answer: 'NETWORK',
+      points: 250,
+      gameType: '4pics',
+      gameConfig: {
+        images: [
+          'https://images.unsplash.com/photo-1544197150-b99a580bb7f8?w=400',
+          'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400',
+          'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400',
+          'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400'
+        ]
+      }
+    },
+    {
+      id: 'c7',
+      title: 'Lexicon Branch',
+      description: 'Guess the system password.',
+      question: 'Determine the 5-letter key.',
+      answer: 'CYBER',
+      points: 300,
+      gameType: 'wordle'
+    },
+    {
+      id: 'c8',
+      title: 'Cognitive Camouflage',
+      description: 'Analyze visual data density.',
+      question: 'Count the number of screens in the image.',
+      answer: '3',
+      points: 400,
+      gameType: 'visual_count',
+      gameConfig: {
+        image: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800'
+      }
+    }
   ]);
 
   // Map raw DB rows (snake_case) into the GameEvent shape for fallback fetches
@@ -192,11 +230,11 @@ const App: React.FC = () => {
   const handleCountdownUpdate = async (date: string) => {
     // Just update the countdown end time, don't change torch state
     // If torch is already lit, it stays lit
-    setAppState(prev => ({ 
-      ...prev, 
+    setAppState(prev => ({
+      ...prev,
       countdownEnd: date
     }));
-    
+
     // Save to database
     try {
       await axios.post(`${API_URL}/countdown`, { countdown_end: date });
@@ -209,12 +247,12 @@ const App: React.FC = () => {
   };
 
   const handleTorchLight = async () => {
-    setAppState(prev => ({ 
-      ...prev, 
+    setAppState(prev => ({
+      ...prev,
       isTorchLit: true,
       isTorchAutoLit: true // Mark that torch auto-lit from countdown
     }));
-    
+
     // Save to database
     try {
       await axios.post(`${API_URL}/torch/light`);
@@ -223,7 +261,7 @@ const App: React.FC = () => {
     }
   };
 
-// Fetch initial data from backend and set up real-time sync with WebSocket
+  // Fetch initial data from backend and set up real-time sync with WebSocket
   useEffect(() => {
     // Load username from localStorage on initial load (client-based)
     const savedUsername = localStorage.getItem('iteverse_username');
@@ -231,20 +269,20 @@ const App: React.FC = () => {
       setUserProfile(prev => ({ ...prev, username: savedUsername }));
       console.log('✅ Loaded username from localStorage:', savedUsername);
     }
-    
+
     // Initialize WebSocket for true real-time updates
     const initializeWebSocket = () => {
       try {
         wsRef.current = new WebSocket(WS_URL);
-        
+
         wsRef.current.onopen = () => {
           console.log('✅ WebSocket connected - real-time sync active');
         };
-        
+
         wsRef.current.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
-            
+
             // Handle team updates (including logo uploads)
             if (message.type === 'team_updated') {
               setTeams(prev => ({
@@ -256,21 +294,21 @@ const App: React.FC = () => {
               }));
               console.log('✅ Team logo updated for all users via WebSocket:', message.data.id);
             }
-            
+
             // Handle event updates
             if (message.type === 'event_updated') {
-              setEvents(prev => prev.map(evt => 
+              setEvents(prev => prev.map(evt =>
                 evt.id === message.data.id ? { ...evt, ...message.data } : evt
               ));
               console.log('✅ Event updated via WebSocket:', message.data.id);
             }
-            
+
             // Handle app state updates
             if (message.type === 'app_state_updated') {
               setAppState(prev => ({ ...prev, ...message.data }));
               console.log('✅ App state updated via WebSocket');
             }
-            
+
             // Handle viewer username updates (real-time sync across devices)
             if (message.type === 'viewer_username_updated') {
               // Only update if we don't have a local username set
@@ -284,11 +322,11 @@ const App: React.FC = () => {
             console.error('Error processing WebSocket message:', err);
           }
         };
-        
+
         wsRef.current.onerror = (error) => {
           console.warn('WebSocket error:', error);
         };
-        
+
         wsRef.current.onclose = () => {
           console.warn('WebSocket disconnected - falling back to polling');
           // Attempt to reconnect every 5 seconds
@@ -298,19 +336,19 @@ const App: React.FC = () => {
         console.warn('Failed to initialize WebSocket:', err);
       }
     };
-    
+
     // Initialize WebSocket for real-time updates
     initializeWebSocket();
-    
+
     const fetchData = async (isInitial = false) => {
       try {
         console.log('Syncing data from API...');
-        
+
         // Try new sync endpoint first (returns all data in one call)
         try {
           const syncRes = await axios.get(`${API_URL}/sync`);
           const syncData = syncRes.data;
-          
+
           // Transform teams array to object keyed by id
           const teamsObj: Record<string, Team> = {};
           for (const team of syncData.teams) {
@@ -330,16 +368,16 @@ const App: React.FC = () => {
               }))
             };
           }
-          
+
           setTeams(teamsObj);
           saveTeamsToLocalStorage(teamsObj); // Persist to localStorage
           setEvents(syncData.events);
-          
+
           // Update challenges from sync
           if (syncData.challenges && syncData.challenges.length > 0) {
             setChallenges(syncData.challenges);
           }
-          
+
           // Update app state from DB
           if (syncData.appState) {
             setAppState(prev => ({
@@ -347,7 +385,7 @@ const App: React.FC = () => {
               countdownEnd: syncData.appState.countdown_end || prev.countdownEnd,
               isTorchLit: syncData.appState.is_torch_lit || prev.isTorchLit
             }));
-            
+
             // Sync viewer_username from database if no local username exists
             const localUsername = localStorage.getItem('iteverse_username');
             if (syncData.appState.viewer_username && !localUsername) {
@@ -355,21 +393,21 @@ const App: React.FC = () => {
               console.log('✅ Synced viewer username from DB:', syncData.appState.viewer_username);
             }
           }
-          
+
           if (isInitial) {
             setIsLoading(false);
           }
-          
-          console.log('Data synced successfully:', { 
-            teams: Object.keys(teamsObj).length, 
+
+          console.log('Data synced successfully:', {
+            teams: Object.keys(teamsObj).length,
             events: syncData.events.length,
-            timestamp: syncData.timestamp 
+            timestamp: syncData.timestamp
           });
           return;
         } catch (syncErr) {
           console.log('Sync endpoint not available, falling back to individual endpoints');
         }
-        
+
         // Fallback to individual endpoints
         const [teamsRes, eventsRes, appStateRes, challengesRes] = await Promise.all([
           axios.get(`${API_URL}/teams`),
@@ -442,10 +480,10 @@ const App: React.FC = () => {
 
     // Initial fetch
     fetchData(true);
-    
+
     // Set up real-time sync interval (fallback if WebSocket fails)
     syncIntervalRef.current = setInterval(() => fetchData(false), SYNC_INTERVAL);
-    
+
     // Cleanup on unmount
     return () => {
       if (syncIntervalRef.current) {
@@ -466,7 +504,7 @@ const App: React.FC = () => {
     if (appState.isTorchLit && !appState.selectedTeamId) {
       const timer = setTimeout(() => {
         teamSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 4500); 
+      }, 4500);
       return () => clearTimeout(timer);
     }
   }, [appState.isTorchLit, appState.selectedTeamId]);
@@ -479,7 +517,7 @@ const App: React.FC = () => {
   const handlePortalComplete = () => {
     setIntroStage('content');
     setTimeout(() => {
-        setShowPortal(false);
+      setShowPortal(false);
     }, 2000);
   };
 
@@ -488,7 +526,7 @@ const App: React.FC = () => {
     setUserProfile(prev => ({ ...prev, username }));
     // Store in localStorage for persistence (client-based)
     localStorage.setItem('iteverse_username', username);
-    
+
     // Sync username to database for real-time display
     try {
       await axios.post(`${API_URL}/app-state`, {
@@ -499,10 +537,10 @@ const App: React.FC = () => {
     } catch (err) {
       console.warn('Failed to sync username to database:', err);
     }
-    
+
     // Force reset to 'games' view and instant scroll to top
     setAppState(prev => ({ ...prev, selectedTeamId: teamId, currentView: 'games' }));
-    
+
     const teamColor = teams[teamId].color;
     confetti({
       particleCount: 150,
@@ -511,7 +549,7 @@ const App: React.FC = () => {
       colors: [teamColor, '#ffffff'],
       zIndex: 1000,
     });
-    
+
     // Ensure we start at the Hero Section immediately
     window.scrollTo(0, 0);
   };
@@ -529,14 +567,14 @@ const App: React.FC = () => {
   };
 
   const handleLogin = (username: string, isAdmin: boolean) => {
-      setUserProfile(prev => ({ 
-        ...prev, 
-        username: username, 
-        badges: [...prev.badges, 'Verified Agent', ...(isAdmin ? ['Admin'] : [])],
-        isAdmin: isAdmin
-      }));
-      setAppState(prev => ({ ...prev, currentView: 'games' }));
-      triggerConfetti();
+    setUserProfile(prev => ({
+      ...prev,
+      username: username,
+      badges: [...prev.badges, 'Verified Agent', ...(isAdmin ? ['Admin'] : [])],
+      isAdmin: isAdmin
+    }));
+    setAppState(prev => ({ ...prev, currentView: 'games' }));
+    triggerConfetti();
   };
 
   // ADMIN ACTIONS
@@ -549,7 +587,7 @@ const App: React.FC = () => {
         matches: evt.matches.map(m => m.id === matchId ? { ...m, status } : m)
       };
     }));
-    
+
     // Persist to database
     try {
       await axios.put(`${API_URL}/events/${eventId}/matches/${matchId}`, { status });
@@ -562,13 +600,13 @@ const App: React.FC = () => {
   const updateMatchStream = async (eventId: string, matchId: string, streamUrl: string) => {
     // Update local state immediately
     setEvents(prevEvents => prevEvents.map(evt => {
-        if (evt.id !== eventId) return evt;
-        return {
-            ...evt,
-            matches: evt.matches.map(m => m.id === matchId ? { ...m, streamUrl } : m)
-        }
+      if (evt.id !== eventId) return evt;
+      return {
+        ...evt,
+        matches: evt.matches.map(m => m.id === matchId ? { ...m, streamUrl } : m)
+      }
     }));
-    
+
     // Persist to database
     try {
       await axios.put(`${API_URL}/events/${eventId}/matches/${matchId}`, { stream_url: streamUrl });
@@ -616,140 +654,140 @@ const App: React.FC = () => {
   };
 
   const updateEvent = async (eventId: string, updates: Partial<GameEvent> | any) => {
-      // Update local state immediately
-      setEvents(prevEvents => prevEvents.map(evt => {
-          if (evt.id !== eventId) return evt;
-          // Handle deep merge for details
-          let newDetails = evt.details;
-          if(updates.details) {
-              newDetails = { ...evt.details, ...updates.details };
-          }
-          return { ...evt, ...updates, details: newDetails };
-      }));
-      
-      // Persist to database
-      try {
-        const payload: any = { ...updates };
-        if (updates.gameLogo !== undefined) payload.game_logo = updates.gameLogo;
-        if (updates.banner !== undefined) payload.banner = updates.banner;
-        if (updates.startDate !== undefined) payload.start_date = updates.startDate;
-        if (updates.format !== undefined) payload.format = updates.format;
-        if (updates.entryFee !== undefined) payload.entry_fee = updates.entryFee;
-        if (updates.countdownEnd !== undefined) payload.countdown_end = updates.countdownEnd;
-        if (updates.globalSeed !== undefined) payload.global_seed = updates.globalSeed;
-        if (updates.modeWins !== undefined) payload.mode_wins = updates.modeWins;
-        if (updates.modeLosses !== undefined) payload.mode_losses = updates.modeLosses;
-        if (updates.matchHistorySynced !== undefined) payload.match_history_synced = updates.matchHistorySynced;
-        if (updates.statusRegistration !== undefined) payload.status_registration = updates.statusRegistration;
-        if (updates.statusConfirmation !== undefined) payload.status_confirmation = updates.statusConfirmation;
-        if (updates.statusSeeding !== undefined) payload.status_seeding = updates.statusSeeding;
-        if (updates.rulesText !== undefined) payload.rules = updates.rulesText;
-        if (updates.availableSlots !== undefined) payload.available_slots = updates.availableSlots;
-        if (updates.confirmedSlots !== undefined) payload.confirmed_slots = updates.confirmedSlots;
-        await axios.put(`${API_URL}/events/${eventId}`, payload);
-          console.log(`✅ Event ${eventId} updated:`, updates);
-          
-          // Broadcast update to all connected users via WebSocket if available
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'event_updated',
-              data: { id: eventId, ...updates }
-            }));
-            console.log('🔄 Broadcasted event update to all users via WebSocket');
-          }
-      } catch (error) {
-          console.error('Failed to persist event update:', error);
+    // Update local state immediately
+    setEvents(prevEvents => prevEvents.map(evt => {
+      if (evt.id !== eventId) return evt;
+      // Handle deep merge for details
+      let newDetails = evt.details;
+      if (updates.details) {
+        newDetails = { ...evt.details, ...updates.details };
       }
+      return { ...evt, ...updates, details: newDetails };
+    }));
+
+    // Persist to database
+    try {
+      const payload: any = { ...updates };
+      if (updates.gameLogo !== undefined) payload.game_logo = updates.gameLogo;
+      if (updates.banner !== undefined) payload.banner = updates.banner;
+      if (updates.startDate !== undefined) payload.start_date = updates.startDate;
+      if (updates.format !== undefined) payload.format = updates.format;
+      if (updates.entryFee !== undefined) payload.entry_fee = updates.entryFee;
+      if (updates.countdownEnd !== undefined) payload.countdown_end = updates.countdownEnd;
+      if (updates.globalSeed !== undefined) payload.global_seed = updates.globalSeed;
+      if (updates.modeWins !== undefined) payload.mode_wins = updates.modeWins;
+      if (updates.modeLosses !== undefined) payload.mode_losses = updates.modeLosses;
+      if (updates.matchHistorySynced !== undefined) payload.match_history_synced = updates.matchHistorySynced;
+      if (updates.statusRegistration !== undefined) payload.status_registration = updates.statusRegistration;
+      if (updates.statusConfirmation !== undefined) payload.status_confirmation = updates.statusConfirmation;
+      if (updates.statusSeeding !== undefined) payload.status_seeding = updates.statusSeeding;
+      if (updates.rulesText !== undefined) payload.rules = updates.rulesText;
+      if (updates.availableSlots !== undefined) payload.available_slots = updates.availableSlots;
+      if (updates.confirmedSlots !== undefined) payload.confirmed_slots = updates.confirmedSlots;
+      await axios.put(`${API_URL}/events/${eventId}`, payload);
+      console.log(`✅ Event ${eventId} updated:`, updates);
+
+      // Broadcast update to all connected users via WebSocket if available
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'event_updated',
+          data: { id: eventId, ...updates }
+        }));
+        console.log('🔄 Broadcasted event update to all users via WebSocket');
+      }
+    } catch (error) {
+      console.error('Failed to persist event update:', error);
+    }
   };
 
   const updateTeam = async (teamId: string, updates: Partial<Team>) => {
-      // Validate logo data if updating logo
-      if (updates.logo && typeof updates.logo === 'string') {
-          if (updates.logo.length > 100 && !updates.logo.startsWith('data:image/') && !updates.logo.startsWith('http')) {
-              console.error('❌ Invalid logo data detected:', updates.logo.substring(0, 50) + '...');
-              console.warn('⚠️ Logo appears corrupted. Make sure it starts with "data:image/" for base64 or "http" for URLs');
-          }
+    // Validate logo data if updating logo
+    if (updates.logo && typeof updates.logo === 'string') {
+      if (updates.logo.length > 100 && !updates.logo.startsWith('data:image/') && !updates.logo.startsWith('http')) {
+        console.error('❌ Invalid logo data detected:', updates.logo.substring(0, 50) + '...');
+        console.warn('⚠️ Logo appears corrupted. Make sure it starts with "data:image/" for base64 or "http" for URLs');
       }
+    }
 
-      // Update local state immediately
-      setTeams(prev => ({
-          ...prev,
-          [teamId]: { ...prev[teamId], ...updates }
-      }));
-      
-      // Persist to localStorage for client-side persistence
-      setTeams(prev => {
-        const updated = {
-          ...prev,
-          [teamId]: { ...prev[teamId], ...updates }
-        };
-        saveTeamsToLocalStorage(updated);
-        return updated;
-      });
-      
-      // Persist to database
-      try {
-          await axios.put(`${API_URL}/teams/${teamId}`, updates);
-          console.log(`✅ Team ${teamId} updated:`, updates);
-          
-          // Broadcast update to all connected users via WebSocket if available
-          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'team_updated',
-              data: { id: teamId, ...updates }
-            }));
-            console.log('🔄 Broadcasted team update to all users via WebSocket');
-          }
-      } catch (error) {
-          console.error('Failed to persist team update:', error);
+    // Update local state immediately
+    setTeams(prev => ({
+      ...prev,
+      [teamId]: { ...prev[teamId], ...updates }
+    }));
+
+    // Persist to localStorage for client-side persistence
+    setTeams(prev => {
+      const updated = {
+        ...prev,
+        [teamId]: { ...prev[teamId], ...updates }
+      };
+      saveTeamsToLocalStorage(updated);
+      return updated;
+    });
+
+    // Persist to database
+    try {
+      await axios.put(`${API_URL}/teams/${teamId}`, updates);
+      console.log(`✅ Team ${teamId} updated:`, updates);
+
+      // Broadcast update to all connected users via WebSocket if available
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'team_updated',
+          data: { id: teamId, ...updates }
+        }));
+        console.log('🔄 Broadcasted team update to all users via WebSocket');
       }
+    } catch (error) {
+      console.error('Failed to persist team update:', error);
+    }
   };
 
-    const refreshTeamBreakdown = async (teamId: string) => {
+  const refreshTeamBreakdown = async (teamId: string) => {
     try {
       const res = await axios.get(`${API_URL}/teams/${teamId}/breakdown`);
       const items = (res.data || []).map((b: any) => ({
-      source: b.source,
-      points: b.points,
-      comment: b.comment,
-      updatedBy: b.updated_by || b.updatedBy,
-      createdAt: b.created_at || b.createdAt
+        source: b.source,
+        points: b.points,
+        comment: b.comment,
+        updatedBy: b.updated_by || b.updatedBy,
+        createdAt: b.created_at || b.createdAt
       }));
       setTeams(prev => ({
-      ...prev,
-      [teamId]: prev[teamId] ? { ...prev[teamId], breakdown: items } : prev[teamId]
+        ...prev,
+        [teamId]: prev[teamId] ? { ...prev[teamId], breakdown: items } : prev[teamId]
       }));
     } catch (err) {
       console.error('Failed to refresh team breakdown:', err);
     }
-    };
+  };
 
-    const updateTeamPoints = async (teamId: string, points: number, source: string, comment?: string, updatedBy?: string) => {
-      const actor = updatedBy || userProfile.username || 'admin';
-      // Optimistic local state update
-      setTeams(prev => {
-        const team = prev[teamId];
-        if (!team) return prev;
-        return {
-          ...prev,
-          [teamId]: {
-            ...team,
-            breakdown: [...team.breakdown, { source, points, comment, updatedBy: actor }]
-          }
-        };
-      });
-      
-      // Persist to database
-      try {
-        await axios.post(`${API_URL}/teams/${teamId}/add-points`, { points, source, comment, updated_by: actor });
-        console.log(`Points added: ${points} to team ${teamId} for ${source}`);
-        await refreshTeamBreakdown(teamId);
-      } catch (error) {
-        console.error('Failed to persist points to database:', error);
-        // On failure, refetch to realign state
-        refreshTeamBreakdown(teamId);
-      }
-    };
+  const updateTeamPoints = async (teamId: string, points: number, source: string, comment?: string, updatedBy?: string) => {
+    const actor = updatedBy || userProfile.username || 'admin';
+    // Optimistic local state update
+    setTeams(prev => {
+      const team = prev[teamId];
+      if (!team) return prev;
+      return {
+        ...prev,
+        [teamId]: {
+          ...team,
+          breakdown: [...team.breakdown, { source, points, comment, updatedBy: actor }]
+        }
+      };
+    });
+
+    // Persist to database
+    try {
+      await axios.post(`${API_URL}/teams/${teamId}/add-points`, { points, source, comment, updated_by: actor });
+      console.log(`Points added: ${points} to team ${teamId} for ${source}`);
+      await refreshTeamBreakdown(teamId);
+    } catch (error) {
+      console.error('Failed to persist points to database:', error);
+      // On failure, refetch to realign state
+      refreshTeamBreakdown(teamId);
+    }
+  };
 
   // Create new team
   const createTeam = async (team: Team) => {
@@ -762,7 +800,7 @@ const App: React.FC = () => {
         description: team.description,
         color: team.color
       });
-      
+
       // Update local state
       setTeams(prev => {
         const updated = {
@@ -772,7 +810,7 @@ const App: React.FC = () => {
         saveTeamsToLocalStorage(updated);
         return updated;
       });
-      
+
       console.log(`Team ${team.name} created successfully`);
     } catch (error) {
       console.error('Failed to create team:', error);
@@ -784,7 +822,7 @@ const App: React.FC = () => {
   const deleteTeam = async (teamId: string) => {
     try {
       await axios.delete(`${API_URL}/teams/${teamId}`);
-      
+
       // Update local state
       setTeams(prev => {
         const newTeams = { ...prev };
@@ -792,7 +830,7 @@ const App: React.FC = () => {
         saveTeamsToLocalStorage(newTeams);
         return newTeams;
       });
-      
+
       console.log(`Team ${teamId} deleted successfully`);
     } catch (error) {
       console.error('Failed to delete team:', error);
@@ -813,7 +851,7 @@ const App: React.FC = () => {
         bracket_type: event.bracketType,
         status: 'pending'
       });
-      
+
       // Update local state with full event structure
       const newEvent: GameEvent = {
         id: event.id!,
@@ -837,7 +875,7 @@ const App: React.FC = () => {
         teamRecord: { wins: 0, losses: 0 },
         organizer: { name: 'Admin', email: 'admin@iteverse.com' }
       };
-      
+
       setEvents(prev => [...prev, newEvent]);
       console.log(`Event ${event.title} created successfully`);
     } catch (error) {
@@ -850,11 +888,11 @@ const App: React.FC = () => {
   const deleteEvent = async (eventId: string) => {
     try {
       await axios.delete(`${API_URL}/events/${eventId}`);
-      
+
       // Update local state
       setEvents(prev => prev.filter(e => e.id !== eventId));
       setSelectedEvent(prev => (prev?.id === eventId ? null : prev));
-      
+
       console.log(`Event ${eventId} deleted successfully`);
     } catch (error) {
       console.error('Failed to delete event:', error);
@@ -934,10 +972,10 @@ const App: React.FC = () => {
     bgColor = '#00ffff';
   } else if (introStage === 'content') {
     if (!appState.selectedTeamId) {
-       bgMode = 'static';
+      bgMode = 'static';
     } else if (teams[appState.selectedTeamId]) {
-       bgMode = 'cruise';
-       bgColor = teams[appState.selectedTeamId].color;
+      bgMode = 'cruise';
+      bgColor = teams[appState.selectedTeamId].color;
     }
   }
 
@@ -957,7 +995,7 @@ const App: React.FC = () => {
       return (
         <>
           <CyberBackground mode="static" colorTheme="#7c3aed" />
-          <LoginView 
+          <LoginView
             currentTeam={teams['t1'] || INITIAL_TEAMS['t1']}
             onLogin={handleLogin}
           />
@@ -1023,24 +1061,24 @@ const App: React.FC = () => {
 
       {showPortal && (
         <div className={`fixed inset-0 z-[50] transition-opacity duration-1000 ease-out ${introStage === 'content' ? 'opacity-0 pointer-events-none hidden' : 'opacity-100'}`}>
-             <PortalTransition onComplete={handlePortalComplete} />
+          <PortalTransition onComplete={handlePortalComplete} />
         </div>
       )}
 
-        {introStage === 'content' && (
+      {introStage === 'content' && (
         <>
           {!appState.selectedTeamId ? (
             <div className="relative min-h-screen text-white overflow-x-hidden animate-in fade-in duration-1000">
               <Hero appState={appState} onTorchLight={handleTorchLight} />
               {appState.isTorchLit && (
-              <div ref={teamSectionRef} className="animate-in fade-in duration-1000">
-                <TeamLore onSelect={handleTeamSelect} teams={teams} />
-              </div>
+                <div ref={teamSectionRef} className="animate-in fade-in duration-1000">
+                  <TeamLore onSelect={handleTeamSelect} teams={teams} />
+                </div>
               )}
             </div>
           ) : (
-            <DashboardLayout 
-              currentTeam={teams[appState.selectedTeamId]} 
+            <DashboardLayout
+              currentTeam={teams[appState.selectedTeamId]}
               userProfile={userProfile}
               currentView={appState.currentView}
               onNavigate={handleNavigate}
@@ -1057,25 +1095,25 @@ const App: React.FC = () => {
                   <QRScanner currentTeam={teams[appState.selectedTeamId]} challenges={challenges} />
                 )}
                 {appState.currentView === 'tournaments' && (
-                  <TournamentsView 
-                    onNavigate={handleNavigate} 
+                  <TournamentsView
+                    onNavigate={handleNavigate}
                     currentTeam={teams[appState.selectedTeamId]}
                     events={events}
                   />
                 )}
               </div>
 
-              <EventModal 
-                event={selectedEvent} 
-                onClose={() => setSelectedEvent(null)} 
+              <EventModal
+                event={selectedEvent}
+                onClose={() => setSelectedEvent(null)}
                 teams={teams}
               />
             </DashboardLayout>
           )}
         </>
-        )}
-        {/* Always show footer at the bottom of the app */}
-        <Footer />
+      )}
+      {/* Always show footer at the bottom of the app */}
+      <Footer />
     </>
   );
 };

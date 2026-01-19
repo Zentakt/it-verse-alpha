@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { Cpu, Zap, Brain, Shield, X, Check, Grid, Hash, Key, Lock, Eye, HelpCircle, AlertCircle, Timer } from 'lucide-react';
+import { Cpu, Zap, Brain, Shield, X, Check, Grid, Hash, Key, Lock, Eye, HelpCircle, AlertCircle, Timer, Image as ImageIcon, Search, Type } from 'lucide-react';
 import { Challenge } from '../types';
 
 interface ChallengeGamesProps {
@@ -17,7 +17,7 @@ const NeuralLinkGame = ({ onWin }: { onWin: () => void }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [activeBtn, setActiveBtn] = useState<number | null>(null);
     const [round, setRound] = useState(1);
-    
+
     // Config: 5 Rounds for "Time consuming"
     const GRID_SIZE = 9;
     const MAX_ROUNDS = 5;
@@ -56,11 +56,11 @@ const NeuralLinkGame = ({ onWin }: { onWin: () => void }) => {
 
     const handleTap = (idx: number) => {
         if (isPlaying) return;
-        
+
         // Visual Feedback
         const btn = document.getElementById(`node-${idx}`);
-        gsap.fromTo(btn, 
-            { scale: 0.9, boxShadow: '0 0 0px cyan' }, 
+        gsap.fromTo(btn,
+            { scale: 0.9, boxShadow: '0 0 0px cyan' },
             { scale: 1, boxShadow: '0 0 20px cyan', duration: 0.3, clearProps: 'all' }
         );
 
@@ -76,7 +76,7 @@ const NeuralLinkGame = ({ onWin }: { onWin: () => void }) => {
             const grid = document.querySelector(".game-grid");
             gsap.to(grid, { x: 10, duration: 0.05, yoyo: true, repeat: 5, backgroundColor: 'rgba(255,0,0,0.1)' });
             gsap.to(grid, { backgroundColor: 'transparent', duration: 0.2, delay: 0.5 });
-            
+
             // Reset Game completely on fail to make it harder/longer
             setSequence([]);
             setRound(1);
@@ -126,18 +126,18 @@ const NeuralLinkGame = ({ onWin }: { onWin: () => void }) => {
 // --- GAME 2: DATA PAIR SYNC (MEMORY) - 12 Cards ---
 const MemoryGame = ({ onWin }: { onWin: () => void }) => {
     const ICONS = [Zap, Brain, Shield, Key, Grid, Hash];
-    const [cards, setCards] = useState<{id: number, iconIdx: number, matched: boolean, flipped: boolean}[]>([]);
+    const [cards, setCards] = useState<{ id: number, iconIdx: number, matched: boolean, flipped: boolean }[]>([]);
     const [locked, setLocked] = useState(false);
     const [moves, setMoves] = useState(0);
 
     // Init - 6 Pairs (12 Cards)
     useEffect(() => {
-        const selection = ICONS.slice(0, 6); 
+        const selection = ICONS.slice(0, 6);
         const deck = [...selection, ...selection]
             .map((icon, i) => ({ id: i, iconIdx: selection.indexOf(icon), sort: Math.random() }))
             .sort((a, b) => a.sort - b.sort)
             .map((c, i) => ({ id: i, iconIdx: c.iconIdx, matched: false, flipped: false }));
-        
+
         setCards(deck);
     }, []);
 
@@ -154,25 +154,25 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
         if (active.length === 2) {
             setLocked(true);
             setMoves(m => m + 1);
-            
+
             // Match?
             if (active[0].iconIdx === active[1].iconIdx) {
                 setTimeout(() => {
-                    const matchedState = newCards.map(c => 
-                        (c.id === active[0].id || c.id === active[1].id) 
-                        ? { ...c, matched: true } : c
+                    const matchedState = newCards.map(c =>
+                        (c.id === active[0].id || c.id === active[1].id)
+                            ? { ...c, matched: true } : c
                     );
                     setCards(matchedState);
                     setLocked(false);
-                    
+
                     // Win Condition
                     if (matchedState.every(c => c.matched)) onWin();
                 }, 600);
             } else {
                 setTimeout(() => {
-                    const resetState = newCards.map(c => 
-                        (c.id === active[0].id || c.id === active[1].id) 
-                        ? { ...c, flipped: false } : c
+                    const resetState = newCards.map(c =>
+                        (c.id === active[0].id || c.id === active[1].id)
+                            ? { ...c, flipped: false } : c
                     );
                     setCards(resetState);
                     setLocked(false);
@@ -191,7 +191,7 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
                 {cards.map((card, i) => {
                     const Icon = ICONS[card.iconIdx];
                     return (
-                        <div 
+                        <div
                             key={i}
                             onClick={() => handleCardClick(i)}
                             className={`
@@ -205,7 +205,7 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
                             <div className="absolute inset-0 bg-[#1a1a24] border border-purple-500/30 rounded-lg flex items-center justify-center backface-hidden shadow-[0_0_10px_rgba(168,85,247,0.1)] group hover:border-purple-400">
                                 <div className="w-4 h-4 md:w-6 md:h-6 rounded-full border-2 border-purple-900/50 group-hover:border-purple-500/50"></div>
                             </div>
-                            
+
                             {/* Back (Revealed) */}
                             <div className="absolute inset-0 bg-purple-900/80 border border-purple-400 rounded-lg flex items-center justify-center backface-hidden rotate-y-180 shadow-[0_0_20px_#a855f7]">
                                 <Icon className="text-white w-5 h-5 md:w-8 md:h-8" />
@@ -246,17 +246,17 @@ const CipherGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => v
                 <h4 className="text-green-400 font-mono text-xs tracking-widest mb-2">DECRYPTION CLUE</h4>
                 <p className="text-white text-xl font-bold font-cyber tracking-wide">{challenge.question}</p>
             </div>
-            
+
             <form onSubmit={checkAnswer} className={`relative ${shake ? 'animate-shake' : ''}`}>
-                <input 
+                <input
                     autoFocus
-                    type="text" 
+                    type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="ENTER PASSKEY"
                     className="w-full bg-black/60 border border-green-500/50 text-center text-green-400 font-mono text-xl py-4 rounded-lg focus:outline-none focus:border-green-400 focus:shadow-[0_0_20px_rgba(34,197,94,0.3)] placeholder:text-green-900/50 uppercase tracking-widest"
                 />
-                <button 
+                <button
                     type="submit"
                     className="absolute right-2 top-2 bottom-2 aspect-square bg-green-600 hover:bg-green-500 text-black rounded flex items-center justify-center transition-colors"
                 >
@@ -284,7 +284,7 @@ const QuizGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => voi
 
     const handleOptionSelect = (idx: number) => {
         if (locked) return;
-        
+
         const q = questions[currentQ];
         if (idx === q.correct) {
             // Correct
@@ -304,7 +304,7 @@ const QuizGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => voi
             setWrongSelection(idx);
             setLocked(true);
             setCooldown(3); // 3 Seconds penalty
-            
+
             const timer = setInterval(() => {
                 setCooldown(prev => {
                     if (prev <= 1) {
@@ -338,7 +338,7 @@ const QuizGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => voi
 
             <div className="space-y-3">
                 {qData.options.map((opt: string, i: number) => (
-                    <button 
+                    <button
                         key={i}
                         onClick={() => handleOptionSelect(i)}
                         disabled={locked}
@@ -359,7 +359,7 @@ const QuizGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => voi
                         {/* Cooldown Overlay for wrong answers */}
                         {wrongSelection === i && cooldown > 0 && (
                             <div className="absolute inset-0 bg-red-900/90 flex items-center justify-center gap-2 text-white font-black z-20">
-                                <Timer size={16} className="animate-spin" /> 
+                                <Timer size={16} className="animate-spin" />
                                 LOCKOUT: {cooldown}s
                             </div>
                         )}
@@ -370,14 +370,304 @@ const QuizGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => voi
     );
 };
 
+
+// --- GAME 5: SYNAPSE LINK (4 PICS 1 WORD) ---
+const SynapseLinkGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => void }) => {
+    const images = challenge.gameConfig?.images || [];
+    const answer = challenge.answer.toUpperCase();
+    const [userGuess, setUserGuess] = useState<string[]>(Array(answer.length).fill(''));
+    const [availableChars, setAvailableChars] = useState<{ char: string, id: number }[]>([]);
+    const [shake, setShake] = useState(false);
+
+    useEffect(() => {
+        const answerChars = answer.split('');
+        const randomChars = Array.from({ length: 14 - answerChars.length }, () =>
+            String.fromCharCode(65 + Math.floor(Math.random() * 26))
+        );
+        const allChars = [...answerChars, ...randomChars]
+            .map((char, i) => ({ char, id: i }))
+            .sort(() => Math.random() - 0.5);
+        setAvailableChars(allChars);
+    }, [challenge.answer]);
+
+    const handleCharClick = (charObj: { char: string, id: number }) => {
+        const firstEmptyIndex = userGuess.findIndex(c => c === '');
+        if (firstEmptyIndex === -1) return;
+
+        const newGuess = [...userGuess];
+        newGuess[firstEmptyIndex] = charObj.char;
+        setUserGuess(newGuess);
+
+        setAvailableChars(prev => prev.filter(c => c.id !== charObj.id));
+    };
+
+    const handleUndo = (index: number) => {
+        const char = userGuess[index];
+        if (!char) return;
+
+        const newGuess = [...userGuess];
+        newGuess[index] = '';
+        setUserGuess(newGuess);
+        setAvailableChars(prev => [...prev, { char, id: Math.random() }]);
+    };
+
+    useEffect(() => {
+        if (!userGuess.includes('')) {
+            if (userGuess.join('') === answer) {
+                onWin();
+            } else {
+                setShake(true);
+                setTimeout(() => {
+                    setShake(false);
+                    setUserGuess(Array(answer.length).fill(''));
+                    const answerChars = answer.split('');
+                    const randomChars = Array.from({ length: 14 - answerChars.length }, () =>
+                        String.fromCharCode(65 + Math.floor(Math.random() * 26))
+                    );
+                    const allChars = [...answerChars, ...randomChars]
+                        .map((char, i) => ({ char, id: i }))
+                        .sort(() => Math.random() - 0.5);
+                    setAvailableChars(allChars);
+                }, 800);
+            }
+        }
+    }, [userGuess, answer, onWin]);
+
+    return (
+        <div className="w-full max-w-sm flex flex-col items-center space-y-6">
+            <div className="grid grid-cols-2 gap-2 w-full aspect-square p-2 bg-black/40 rounded-xl border border-white/10">
+                {images.map((img: string, i: number) => (
+                    <div key={i} className="relative rounded-lg overflow-hidden border border-white/5 bg-white/5">
+                        <img src={img} alt={`Clue ${i + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                ))}
+                {images.length < 4 && [...Array(4 - images.length)].map((_, i) => (
+                    <div key={i + images.length} className="flex items-center justify-center bg-white/5 rounded-lg border border-white/5 text-gray-500 text-xs flex-col gap-2">
+                        <ImageIcon size={20} className="text-gray-600" />
+                        NO SIGNAL
+                    </div>
+                ))}
+            </div>
+
+            <div className="space-y-4 w-full">
+                <div className={`flex gap-2 justify-center ${shake ? 'animate-shake' : ''}`}>
+                    {userGuess.map((char, i) => (
+                        <button
+                            key={i}
+                            onClick={() => handleUndo(i)}
+                            className="w-10 h-10 md:w-12 md:h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center text-xl font-bold text-white uppercase hover:bg-white/20 transition-colors"
+                        >
+                            {char}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-2">
+                    {availableChars.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => handleCharClick(item)}
+                            className="w-10 h-10 bg-cyan-600/20 hover:bg-cyan-600/40 border border-cyan-500/30 rounded-lg flex items-center justify-center text-lg font-bold text-cyan-300 uppercase shadow-[0_0_10px_rgba(8,145,178,0.1)] active:scale-95 transition-all"
+                        >
+                            {item.char}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- GAME 6: LEXICON BRANCH (WORDLE) ---
+const LexiconBranchGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => void }) => {
+    const answer = challenge.answer.toUpperCase();
+    const ROWS = 6;
+    const COLS = answer.length;
+
+    const [guesses, setGuesses] = useState<string[]>([]);
+    const [currentGuess, setCurrentGuess] = useState('');
+    const [shake, setShake] = useState(false);
+    const [gameStatus, setGameStatus] = useState<'playing' | 'won' | 'lost'>('playing');
+
+    const handleKey = (key: string) => {
+        if (gameStatus !== 'playing') return;
+
+        if (key === 'ENTER') {
+            if (currentGuess.length !== COLS) {
+                setShake(true);
+                setTimeout(() => setShake(false), 500);
+                return;
+            }
+            const newGuesses = [...guesses, currentGuess];
+            setGuesses(newGuesses);
+            setCurrentGuess('');
+
+            if (currentGuess === answer) {
+                setGameStatus('won');
+                setTimeout(onWin, 1000);
+            } else if (newGuesses.length >= ROWS) {
+                setGameStatus('lost');
+            }
+        } else if (key === 'BACKSPACE') {
+            setCurrentGuess(prev => prev.slice(0, -1));
+        } else if (currentGuess.length < COLS && /^[A-Z]$/.test(key)) {
+            setCurrentGuess(prev => prev + key);
+        }
+    };
+
+    // Virtual Keyboard
+    const keys = [
+        ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+        ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+        ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', 'BACKSPACE']
+    ];
+
+    const getKeyStatus = (key: string) => {
+        if (key === 'ENTER' || key === 'BACKSPACE') return 'neutral';
+
+        let status = 'neutral';
+        guesses.forEach(guess => {
+            const idx = guess.indexOf(key);
+            if (idx === -1) {
+                if (status === 'neutral') status = 'absent';
+            } else {
+                if (answer[idx] === key) status = 'correct';
+                else if (answer.includes(key) && status !== 'correct') status = 'present';
+            }
+        });
+        return status;
+    };
+
+    return (
+        <div className="w-full max-w-sm flex flex-col items-center space-y-6">
+            <div className="space-y-1">
+                {[...Array(ROWS)].map((_, i) => {
+                    const guess = i < guesses.length ? guesses[i] : (i === guesses.length ? currentGuess : '');
+                    const isCurrent = i === guesses.length;
+                    return (
+                        <div key={i} className={`flex gap-1 ${isCurrent && shake ? 'animate-shake' : ''}`}>
+                            {[...Array(COLS)].map((_, j) => {
+                                const char = guess[j] || '';
+                                let state = 'empty';
+                                if (i < guesses.length) {
+                                    if (answer[j] === char) state = 'correct';
+                                    else if (answer.includes(char)) state = 'present';
+                                    else state = 'absent';
+                                }
+
+                                return (
+                                    <div
+                                        key={j}
+                                        className={`
+                                            w-10 h-10 md:w-12 md:h-12 border rounded flex items-center justify-center text-xl font-bold uppercase transition-all
+                                            ${state === 'correct' ? 'bg-green-600 border-green-600 text-black' :
+                                                state === 'present' ? 'bg-yellow-600 border-yellow-600 text-black' :
+                                                    state === 'absent' ? 'bg-[#1a1a24] border-white/5 text-gray-500' :
+                                                        'bg-transparent border-white/20 text-white'}
+                                        `}
+                                    >
+                                        {char}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    );
+                })}
+            </div>
+
+            {gameStatus === 'lost' && (
+                <div className="text-red-500 font-mono text-sm">FAILED. ANSWER: {answer}</div>
+            )}
+
+            <div className="w-full space-y-2">
+                {keys.map((row, i) => (
+                    <div key={i} className="flex justify-center gap-1">
+                        {row.map(k => {
+                            const status = getKeyStatus(k);
+                            const bgColor = status === 'correct' ? 'bg-green-600 text-black' :
+                                status === 'present' ? 'bg-yellow-600 text-black' :
+                                    status === 'absent' ? 'bg-white/5 text-gray-600' : 'bg-white/10 text-white hover:bg-white/20';
+
+                            return (
+                                <button
+                                    key={k}
+                                    onClick={() => handleKey(k)}
+                                    className={`${k.length > 1 ? 'px-3 text-xs' : 'w-8 text-sm'} h-10 rounded font-bold ${bgColor} transition-colors`}
+                                >
+                                    {k === 'BACKSPACE' ? <X size={16} /> : k}
+                                </button>
+                            )
+                        })}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- GAME 7: COGNITIVE CAMOUFLAGE (VISUAL COUNT) ---
+const CognitiveCamouflageGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => void }) => {
+    const [input, setInput] = useState('');
+    const [shake, setShake] = useState(false);
+
+    // Config: Image URL and Answer (Number)
+    const image = challenge.gameConfig?.image || '/placeholder-puzzle.jpg';
+
+    const checkAnswer = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (input.trim() === challenge.answer) {
+            onWin();
+        } else {
+            setShake(true);
+            setInput('');
+            setTimeout(() => setShake(false), 500);
+            if (navigator.vibrate) navigator.vibrate([100]);
+        }
+    };
+
+    return (
+        <div className="w-full max-w-sm space-y-6">
+            <div className="bg-[#111] border border-white/10 rounded-xl overflow-hidden relative group">
+                <img src={image} alt="Puzzle" className="w-full object-contain max-h-64" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black to-transparent p-4">
+                    <div className="flex items-center gap-2 text-yellow-400 font-mono text-xs font-bold bg-black/50 backdrop-blur px-2 py-1 rounded w-fit">
+                        <Search size={12} /> VISUAL_ANALYSIS
+                    </div>
+                </div>
+            </div>
+
+            <div className="text-center font-mono text-sm text-gray-400 border-l-2 border-yellow-500 pl-4 py-2 bg-white/5 rounded-r">
+                {challenge.question}
+            </div>
+
+            <form onSubmit={checkAnswer} className={`relative max-w-[200px] mx-auto ${shake ? 'animate-shake' : ''}`}>
+                <input
+                    type="number"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="#"
+                    className="w-full bg-black/60 border border-yellow-500/50 text-center text-yellow-400 font-mono text-3xl py-4 rounded-xl focus:outline-none focus:border-yellow-400 focus:shadow-[0_0_20px_rgba(234,179,8,0.3)] placeholder:text-yellow-900/50"
+                    autoFocus
+                />
+                <button
+                    type="submit"
+                    className="absolute -right-12 top-1/2 -translate-y-1/2 w-10 h-10 bg-yellow-600 hover:bg-yellow-500 text-black rounded-lg flex items-center justify-center transition-colors shadow-lg"
+                >
+                    <Check size={20} />
+                </button>
+            </form>
+        </div>
+    );
+};
+
 const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, onClose }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [gameState, setGameState] = useState<'intro' | 'playing' | 'success'>('intro');
 
     useEffect(() => {
         // Entrance Anim
-        if(containerRef.current) {
-            gsap.fromTo(containerRef.current, 
+        if (containerRef.current) {
+            gsap.fromTo(containerRef.current,
                 { scale: 0.9, opacity: 0 },
                 { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.2)" }
             );
@@ -392,31 +682,40 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
     };
 
     const renderGame = () => {
-        switch(challenge.gameType) {
+        switch (challenge.gameType) {
             case 'sequence': return <NeuralLinkGame onWin={handleWin} />;
             case 'memory': return <MemoryGame onWin={handleWin} />;
             case 'cipher': return <CipherGame challenge={challenge} onWin={handleWin} />;
             case 'quiz': return <QuizGame challenge={challenge} onWin={handleWin} />;
+            case '4pics': return <SynapseLinkGame challenge={challenge} onWin={handleWin} />;
+            case 'wordle': return <LexiconBranchGame challenge={challenge} onWin={handleWin} />;
+            case 'visual_count': return <CognitiveCamouflageGame challenge={challenge} onWin={handleWin} />;
             default: return <div className="text-red-500 p-4 border border-red-500 rounded">ERROR: UNKNOWN PROTOCOL TYPE '{challenge.gameType}'</div>;
         }
     };
 
     const getGameTitle = () => {
-        switch(challenge.gameType) {
+        switch (challenge.gameType) {
             case 'sequence': return "NEURAL SYNC";
             case 'memory': return "DATA PAIRING";
             case 'cipher': return "FIREWALL BREACH";
             case 'quiz': return "KNOWLEDGE CHECK";
+            case '4pics': return "SYNAPSE LINK";
+            case 'wordle': return "LEXICON BRANCH";
+            case 'visual_count': return "COGNITIVE CAMO";
             default: return "UNKNOWN PROTOCOL";
         }
     };
 
     const getThemeColor = () => {
-        switch(challenge.gameType) {
+        switch (challenge.gameType) {
             case 'sequence': return 'text-cyan-400';
             case 'memory': return 'text-purple-400';
             case 'cipher': return 'text-green-400';
             case 'quiz': return 'text-yellow-400';
+            case '4pics': return 'text-blue-400';
+            case 'wordle': return 'text-pink-400';
+            case 'visual_count': return 'text-orange-400';
             default: return 'text-white';
         }
     };
@@ -424,7 +723,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
     return (
         <div className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
             <div ref={containerRef} className="w-full max-w-md bg-[#0a0a10] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative">
-                
+
                 {/* Header */}
                 <div className="bg-[#111] p-6 border-b border-white/5 flex justify-between items-center relative z-10">
                     <div className="flex items-center gap-3">
@@ -443,7 +742,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
                 <div className="p-8 min-h-[400px] flex flex-col items-center justify-center relative">
                     {/* Background Grid */}
                     <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[length:20px_20px] pointer-events-none"></div>
-                    
+
                     {gameState === 'intro' && (
                         <div className="text-center space-y-6 animate-in fade-in zoom-in duration-300 relative z-10">
                             <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10 relative group">
@@ -454,7 +753,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
                                 <h3 className="text-2xl font-bold text-white mb-2 font-cyber tracking-wide">{challenge.title}</h3>
                                 <p className="text-gray-400 text-sm max-w-xs mx-auto font-ui">{challenge.description || "Complete the protocol to access the reward data."}</p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setGameState('playing')}
                                 className="px-8 py-3 bg-white text-black font-black font-cyber tracking-widest rounded-lg hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.3)] flex items-center gap-2 mx-auto"
                             >

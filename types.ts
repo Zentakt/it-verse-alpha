@@ -33,22 +33,22 @@ export interface Match {
 }
 
 export interface BracketMatch {
-    id: string;
-    round: number; 
-    p1: { id: string; score: number | null; isWinner?: boolean };
-    p2: { id: string; score: number | null; isWinner?: boolean };
-    nextMatchId?: string;
-    status: 'scheduled' | 'live' | 'finished';
+  id: string;
+  round: number;
+  p1: { id: string; score: number | null; isWinner?: boolean };
+  p2: { id: string; score: number | null; isWinner?: boolean };
+  nextMatchId?: string;
+  status: 'scheduled' | 'live' | 'finished';
 }
 
 export interface TournamentDetails {
-    status: 'Open' | 'Pending' | 'Closed';
-    prizePool: string;
-    entryFee: string;
-    format: string;
-    brief: string;
-    rules: string[];
-    schedule: { day: string; hour: string; min: string; sec: string };
+  status: 'Open' | 'Pending' | 'Closed';
+  prizePool: string;
+  entryFee: string;
+  format: string;
+  brief: string;
+  rules: string[];
+  schedule: { day: string; hour: string; min: string; sec: string };
 }
 
 export interface GameEvent {
@@ -101,40 +101,40 @@ export interface UserProfile {
 }
 
 export interface Challenge {
-    id: string;
-    title: string;
-    description: string;
-    question: string;
-    answer: string;
-    points: number;
-    gameType?: 'none' | 'sequence' | 'memory' | 'cipher' | 'quiz';
-    gameConfig?: any; // For custom sequences or card counts
+  id: string;
+  title: string;
+  description: string;
+  question: string;
+  answer: string;
+  points: number;
+  gameType?: 'none' | 'sequence' | 'memory' | 'cipher' | 'quiz' | '4pics' | 'wordle' | 'visual_count';
+  gameConfig?: any; // For custom sequences or card counts
 }
 
 export interface LiveStream {
-    id: string;
-    title: string;
-    description?: string;
-    embed_url: string;
-    thumbnail_url?: string;
-    thumbnail_mode: 'upload' | 'embed';
-    game_category?: string;
-    tournament_id?: string;
-    status: 'scheduled' | 'live' | 'ended';
-    placement: string[]; // Array of placements: can include 'hero', 'recommended', 'previous'
-    starts_at?: string;
-    ended_at?: string;
-    created_at: string;
-    updated_at: string;
-    // Scoreboard data
-    team1_id?: string;
-    team1_name?: string;
-    team1_logo?: string;
-    team1_score?: number;
-    team2_id?: string;
-    team2_name?: string;
-    team2_logo?: string;
-    team2_score?: number;
+  id: string;
+  title: string;
+  description?: string;
+  embed_url: string;
+  thumbnail_url?: string;
+  thumbnail_mode: 'upload' | 'embed';
+  game_category?: string;
+  tournament_id?: string;
+  status: 'scheduled' | 'live' | 'ended';
+  placement: string[]; // Array of placements: can include 'hero', 'recommended', 'previous'
+  starts_at?: string;
+  ended_at?: string;
+  created_at: string;
+  updated_at: string;
+  // Scoreboard data
+  team1_id?: string;
+  team1_name?: string;
+  team1_logo?: string;
+  team1_score?: number;
+  team2_id?: string;
+  team2_name?: string;
+  team2_logo?: string;
+  team2_score?: number;
 }
 
 export interface AppState {
