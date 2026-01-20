@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import gsap from 'gsap';
-import { Cpu, Zap, Brain, Shield, X, Check, Grid, Hash, Key, Lock, Eye, HelpCircle, AlertCircle, Timer, Image as ImageIcon, Search, Type } from 'lucide-react';
+import { Cpu, Zap, Brain, Shield, X, Check, Grid, Hash, Key, Lock, Eye, HelpCircle, AlertCircle, Timer, Image as ImageIcon, Search, Type, Trophy } from 'lucide-react';
 import { Challenge } from '../types';
 
 interface ChallengeGamesProps {
@@ -187,7 +187,7 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
                 <span className="text-purple-400 font-mono text-xs tracking-widest">ATTEMPTS: {moves}</span>
                 <span className="text-purple-400 font-mono text-xs tracking-widest">PAIRS: {cards.filter(c => c.matched).length / 2}/6</span>
             </div>
-            <div className="grid grid-cols-4 gap-2 md:gap-3 perspective-1000">
+            <div className="grid grid-cols-4 gap-2 md:gap-3">
                 {cards.map((card, i) => {
                     const Icon = ICONS[card.iconIdx];
                     return (
@@ -195,20 +195,18 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
                             key={i}
                             onClick={() => handleCardClick(i)}
                             className={`
-                                relative aspect-square cursor-pointer transition-all duration-500 transform-style-3d
-                                ${card.flipped || card.matched ? 'rotate-y-180' : ''}
-                                ${card.matched ? 'opacity-50 scale-90 pointer-events-none' : ''}
+                                relative aspect-square cursor-pointer transition-all duration-300
+                                ${card.matched ? 'opacity-50 scale-95 pointer-events-none' : ''}
                             `}
-                            style={{ transformStyle: 'preserve-3d', transform: (card.flipped || card.matched) ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
                         >
-                            {/* Front (Hidden) */}
-                            <div className="absolute inset-0 bg-[#1a1a24] border border-purple-500/30 rounded-lg flex items-center justify-center backface-hidden shadow-[0_0_10px_rgba(168,85,247,0.1)] group hover:border-purple-400">
-                                <div className="w-4 h-4 md:w-6 md:h-6 rounded-full border-2 border-purple-900/50 group-hover:border-purple-500/50"></div>
+                            {/* Card Content (Back) - Visible when flipped */}
+                            <div className={`absolute inset-0 bg-purple-900/80 border border-purple-400 rounded-lg flex items-center justify-center shadow-[0_0_20px_#a855f7] transition-all duration-300 ${card.flipped || card.matched ? 'opacity-100 rotate-0' : 'opacity-0 rotate-180'}`}>
+                                <Icon className="text-white w-5 h-5 md:w-8 md:h-8" />
                             </div>
 
-                            {/* Back (Revealed) */}
-                            <div className="absolute inset-0 bg-purple-900/80 border border-purple-400 rounded-lg flex items-center justify-center backface-hidden rotate-y-180 shadow-[0_0_20px_#a855f7]">
-                                <Icon className="text-white w-5 h-5 md:w-8 md:h-8" />
+                            {/* Card Cover (Front) - Visible when NOT flipped */}
+                            <div className={`absolute inset-0 bg-[#1a1a24] border border-purple-500/30 rounded-lg flex items-center justify-center shadow-[0_0_10px_rgba(168,85,247,0.1)] group hover:border-purple-400 transition-all duration-300 ${card.flipped || card.matched ? 'opacity-0 -rotate-180' : 'opacity-100 rotate-0'}`}>
+                                <div className="w-4 h-4 md:w-6 md:h-6 rounded-full border-2 border-purple-900/50 group-hover:border-purple-500/50"></div>
                             </div>
                         </div>
                     );
@@ -660,9 +658,45 @@ const CognitiveCamouflageGame = ({ challenge, onWin }: { challenge: Challenge, o
     );
 };
 
+// --- GAME 8: INSTANT REWARD (BONUS) ---
+const InstantWinGame = ({ challenge, onWin }: { challenge: Challenge, onWin: () => void }) => {
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100, 50, 200]);
+            onWin();
+        }, 2500); // 2.5s anticipation
+        return () => clearTimeout(timer);
+    }, []);
+
+    return (
+        <div className="text-center space-y-8 animate-pulse">
+            <div className="w-32 h-32 mx-auto relative">
+                <div className="absolute inset-0 bg-yellow-500/20 rounded-full animate-ping"></div>
+                <div className="relative z-10 w-full h-full bg-yellow-400/10 rounded-full border border-yellow-400 flex items-center justify-center">
+                    <Trophy size={48} className="text-yellow-400" />
+                </div>
+            </div>
+            <div>
+                <h3 className="text-2xl font-black font-cyber text-yellow-400 tracking-widest mb-2">BONUS DETECTED</h3>
+                <p className="text-sm font-mono text-gray-400">AUTHENTICATING INSTANT REWARD...</p>
+            </div>
+            <div className="w-full max-w-[200px] h-1 bg-gray-800 mx-auto rounded-full overflow-hidden">
+                <div className="h-full bg-yellow-400 animate-[width_2s_ease-in-out_forwards]" style={{ width: '0%' }}></div>
+            </div>
+        </div>
+    );
+};
+
 const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, onClose }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [gameState, setGameState] = useState<'intro' | 'playing' | 'success'>('intro');
+
+    // Auto-start bonus games
+    useEffect(() => {
+        if (challenge.gameType === 'bonus') {
+            setGameState('playing');
+        }
+    }, [challenge.gameType]);
 
     useEffect(() => {
         // Entrance Anim
@@ -690,6 +724,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
             case '4pics': return <SynapseLinkGame challenge={challenge} onWin={handleWin} />;
             case 'wordle': return <LexiconBranchGame challenge={challenge} onWin={handleWin} />;
             case 'visual_count': return <CognitiveCamouflageGame challenge={challenge} onWin={handleWin} />;
+            case 'bonus': return <InstantWinGame challenge={challenge} onWin={handleWin} />;
             default: return <div className="text-red-500 p-4 border border-red-500 rounded">ERROR: UNKNOWN PROTOCOL TYPE '{challenge.gameType}'</div>;
         }
     };
@@ -703,6 +738,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
             case '4pics': return "SYNAPSE LINK";
             case 'wordle': return "LEXICON BRANCH";
             case 'visual_count': return "COGNITIVE CAMO";
+            case 'bonus': return "INSTANT REWARD";
             default: return "UNKNOWN PROTOCOL";
         }
     };
@@ -716,6 +752,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
             case '4pics': return 'text-blue-400';
             case 'wordle': return 'text-pink-400';
             case 'visual_count': return 'text-orange-400';
+            case 'bonus': return 'text-yellow-400';
             default: return 'text-white';
         }
     };

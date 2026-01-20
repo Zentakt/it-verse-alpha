@@ -1321,13 +1321,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                                     <div className="pt-6 border-t border-white/5">
                                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Game Protocol</label>
                                                         <div className="grid grid-cols-2 gap-4 mb-6">
-                                                            {['none', 'sequence', 'memory', 'cipher', 'quiz', '4pics', 'wordle', 'visual_count'].map(type => (
+                                                            {['none', 'sequence', 'memory', 'cipher', 'quiz', '4pics', 'wordle', 'visual_count', 'bonus'].map(type => (
                                                                 <button
                                                                     key={type}
                                                                     onClick={() => handleChallengeUpdate('gameType', type)}
                                                                     className={`p-3 rounded-lg border text-sm font-bold uppercase transition-all ${activeChallenge.gameType === type ? 'bg-purple-600 border-purple-500 text-white' : 'bg-black border-white/10 text-gray-500 hover:border-white/30'}`}
                                                                 >
-                                                                    {type === '4pics' ? 'SYNAPSE LINK' : type === 'wordle' ? 'LEXICON BRANCH' : type === 'visual_count' ? 'Cognitive Camo' : type.toUpperCase()}
+                                                                    {type === '4pics' ? 'SYNAPSE LINK' : type === 'wordle' ? 'LEXICON BRANCH' : type === 'visual_count' ? 'Cognitive Camo' : type === 'bonus' ? 'INSTANT REWARD' : type.toUpperCase()}
                                                                 </button>
                                                             ))}
                                                         </div>

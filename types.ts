@@ -107,7 +107,7 @@ export interface Challenge {
   question: string;
   answer: string;
   points: number;
-  gameType?: 'none' | 'sequence' | 'memory' | 'cipher' | 'quiz' | '4pics' | 'wordle' | 'visual_count';
+  gameType?: 'none' | 'sequence' | 'memory' | 'cipher' | 'quiz' | '4pics' | 'wordle' | 'visual_count' | 'bonus';
   gameConfig?: any; // For custom sequences or card counts
 }
 
