@@ -455,6 +455,15 @@ const QRScanner: React.FC<QRScannerProps> = ({ currentTeam, challenges }) => {
                                     PROBLEM SOLVED
                                 </h2>
 
+                                {/* Display Solved Challenge Title */}
+                                {activeChallenge && (
+                                    <div className="mb-6">
+                                        <h3 className="text-xl font-bold text-white/80 uppercase tracking-widest font-mono border-b border-green-500/30 pb-2 inline-block">
+                                            {activeChallenge.title}
+                                        </h3>
+                                    </div>
+                                )}
+
                                 <div className="bg-black/40 border border-green-500/30 p-6 rounded-xl mb-8 relative overflow-hidden">
                                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-[shimmer_2s_infinite]"></div>
                                     <p className="text-green-400 font-mono text-lg md:text-xl font-bold leading-relaxed tracking-wide animate-pulse">
