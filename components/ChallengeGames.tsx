@@ -196,10 +196,10 @@ const MemoryGame = ({ onWin }: { onWin: () => void }) => {
                             onClick={() => handleCardClick(i)}
                             className={`
                                 relative aspect-square cursor-pointer transition-all duration-500 transform-style-3d
-                                ${card.flipped ? 'rotate-y-180' : ''}
+                                ${card.flipped || card.matched ? 'rotate-y-180' : ''}
                                 ${card.matched ? 'opacity-50 scale-90 pointer-events-none' : ''}
                             `}
-                            style={{ transformStyle: 'preserve-3d', transform: card.flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+                            style={{ transformStyle: 'preserve-3d', transform: (card.flipped || card.matched) ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
                         >
                             {/* Front (Hidden) */}
                             <div className="absolute inset-0 bg-[#1a1a24] border border-purple-500/30 rounded-lg flex items-center justify-center backface-hidden shadow-[0_0_10px_rgba(168,85,247,0.1)] group hover:border-purple-400">
@@ -576,7 +576,7 @@ const LexiconBranchGame = ({ challenge, onWin }: { challenge: Challenge, onWin: 
             </div>
 
             {gameStatus === 'lost' && (
-                <div className="text-red-500 font-mono text-sm">FAILED. ANSWER: {answer}</div>
+                <div className="text-red-500 font-mono text-sm">ACCESS DENIED. SEQUENCE TERMINATED.</div>
             )}
 
             <div className="w-full space-y-2">
@@ -729,7 +729,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
                     <div className="flex items-center gap-3">
                         <div className={`w-1 h-8 bg-gradient-to-b from-transparent via-white to-transparent rounded-sm opacity-50`}></div>
                         <div>
-                            <div className="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase">Security Layer</div>
+                            <div className="text-[10px] font-mono text-gray-500 tracking-[0.2em] uppercase">{challenge.title.toUpperCase().includes('BONUS') ? 'BONUS PROTOCOL' : 'Security Layer'}</div>
                             <h2 className={`text-xl font-black font-cyber tracking-wide ${getThemeColor()}`}>{getGameTitle()}</h2>
                         </div>
                     </div>
@@ -774,6 +774,7 @@ const ChallengeGames: React.FC<ChallengeGamesProps> = ({ challenge, onComplete, 
                                 <Check size={64} className="text-green-400 drop-shadow-md" />
                             </div>
                             <h2 className="text-3xl font-black font-cyber text-white tracking-widest">ACCESS GRANTED</h2>
+                            <p className="text-gray-300 font-mono text-sm">Successfully solved: <span className="text-white font-bold">{challenge.title}</span></p>
                             <p className="text-green-400 font-mono text-xs tracking-[0.2em] animate-pulse">DECRYPTING REWARD DATA...</p>
                         </div>
                     )}
