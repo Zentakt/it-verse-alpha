@@ -15,20 +15,22 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<'idle' | 'scanning' | 'success'>('idle');
-    
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
     const containerRef = useRef<HTMLDivElement>(null);
     const formRef = useRef<HTMLDivElement>(null);
+    const captchaRef = useRef<HTMLDivElement>(null);
 
-    // Entry Animation
+    // Initial Focus & Animation
     useEffect(() => {
         if (!formRef.current) return;
         const ctx = gsap.context(() => {
-            gsap.fromTo(formRef.current, 
+            gsap.fromTo(formRef.current,
                 { y: 50, opacity: 0, scale: 0.9 },
                 { y: 0, opacity: 1, scale: 1, duration: 0.6, ease: "back.out(1.2)" }
             );
-            
-            gsap.fromTo(".anim-input", 
+
+            gsap.fromTo(".anim-input",
                 { x: -30, opacity: 0 },
                 { x: 0, opacity: 1, duration: 0.4, stagger: 0.1, ease: "power2.out", delay: 0.2 }
             );
@@ -36,12 +38,45 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
         return () => ctx.revert();
     }, []);
 
+    // Turnstile Initialization
+    useEffect(() => {
+        // Function to verify if turnstile is loaded
+        const initTurnstile = () => {
+            if (captchaRef.current && (window as any).turnstile) {
+                try {
+                    // Clear previous instances if any (primitive way)
+                    captchaRef.current.innerHTML = '';
+                    (window as any).turnstile.render(captchaRef.current, {
+                        sitekey: '1x00000000000000000000AA', // CLOUDFLARE TEST KEY - REPLACE IN PRODUCTION
+                        theme: 'dark',
+                        callback: (token: string) => setCaptchaToken(token),
+                        'expired-callback': () => setCaptchaToken(null),
+                    });
+                } catch (e) {
+                    console.error("Turnstile render error:", e);
+                }
+            }
+        };
+
+        // Try to init immediately, and also set a small timeout in case script is async loading
+        initTurnstile();
+        const timer = setTimeout(initTurnstile, 1000);
+
+        return () => clearTimeout(timer);
+    }, []);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!username || !password) return;
 
+        if (!captchaToken) {
+            alert("Security Check Required: Please complete the CAPTCHA.");
+            return;
+        }
+
         setIsLoading(true);
         setStatus('scanning');
+        // ... rest of the code ...
 
         // Check if admin credentials
         const isAdmin = username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password;
@@ -66,7 +101,7 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
 
     return (
         <div ref={containerRef} className="w-full min-h-[calc(100vh-80px)] flex items-center justify-center p-4 relative overflow-hidden">
-            
+
             {/* Background Decor */}
             <div className="absolute inset-0 pointer-events-none">
                 <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[var(--team-color)]/10 rounded-full blur-[100px] animate-pulse" style={{ '--team-color': tc } as React.CSSProperties}></div>
@@ -74,7 +109,7 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
             </div>
 
             {/* Login Card */}
-            <div 
+            <div
                 ref={formRef}
                 className="w-full max-w-md bg-[#0a0a12]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 md:p-12 relative overflow-hidden shadow-2xl group"
                 style={{ boxShadow: `0 0 40px -10px ${tc}30` }}
@@ -98,13 +133,13 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                                 )}
                             </div>
                         )}
-                        
+
                         {/* Scanning Ring */}
                         {status === 'scanning' && (
                             <div className="absolute inset-0 border-2 border-t-transparent border-[var(--team-color)] rounded-full animate-spin" style={{ '--team-color': tc } as React.CSSProperties}></div>
                         )}
                     </div>
-                    
+
                     <h2 className="text-3xl font-black font-cyber text-white tracking-wide mb-2">
                         {status === 'success' ? 'ACCESS GRANTED' : 'AUTHENTICATION'}
                     </h2>
@@ -115,14 +150,14 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
-                    
+
                     {/* Username */}
                     <div className="anim-input group/input relative">
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-[var(--team-color)] transition-colors" style={{ '--team-color': tc } as React.CSSProperties}>
                             <User size={18} />
                         </div>
-                        <input 
-                            type="text" 
+                        <input
+                            type="text"
                             placeholder="AGENT ID"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
@@ -137,8 +172,8 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within/input:text-[var(--team-color)] transition-colors" style={{ '--team-color': tc } as React.CSSProperties}>
                             <Key size={18} />
                         </div>
-                        <input 
-                            type="password" 
+                        <input
+                            type="password"
                             placeholder="ACCESS KEY"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -148,15 +183,18 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                         />
                     </div>
 
+                    {/* Captcha */}
+                    <div className="anim-input flex justify-center py-2 min-h-[65px]" ref={captchaRef}></div>
+
                     {/* Submit Button */}
                     <div className="anim-input pt-4">
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             disabled={isLoading}
                             className="w-full relative overflow-hidden h-14 bg-white text-black font-black font-cyber tracking-widest text-lg rounded-lg group/btn hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                         >
                             <div className="absolute inset-0 bg-gradient-to-r from-[var(--team-color)] to-transparent opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" style={{ '--team-color': tc } as React.CSSProperties}></div>
-                            
+
                             <span className="relative z-10 flex items-center justify-center gap-3">
                                 {status === 'scanning' ? (
                                     <>
