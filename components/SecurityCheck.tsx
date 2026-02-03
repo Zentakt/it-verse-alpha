@@ -7,16 +7,12 @@ interface SecurityCheckProps {
 const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
     const captchaRef = useRef<HTMLDivElement>(null);
     const [rayId] = useState(() => Math.random().toString(16).substr(2, 16));
-    const [isWidgetLoaded, setIsWidgetLoaded] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        let intervalId: NodeJS.Timeout;
-
-        const renderWidget = () => {
-            if ((window as any).turnstile && captchaRef.current) {
-                // Check if already has child (avoid double render)
-                if (captchaRef.current.hasChildNodes()) return;
-
+        // Define global callback
+        (window as any).turnstileCallback = () => {
+            if (captchaRef.current && (window as any).turnstile) {
                 try {
                     (window as any).turnstile.render(captchaRef.current, {
                         sitekey: '0x4AAAAAAACXVzz9vq7YbFpi',
@@ -24,26 +20,33 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
                         callback: (token: string) => {
                             setTimeout(onVerified, 800);
                         },
+                        'error-callback': () => {
+                            setError("Connection validation failed. Please refresh.");
+                        }
                     });
-                    setIsWidgetLoaded(true);
-                    // Clear interval once rendered
-                    if (intervalId) clearInterval(intervalId);
                 } catch (e) {
-                    console.error("Turnstile render error:", e);
+                    console.error("Turnstile render error", e);
                 }
             }
         };
 
-        // Check every 100ms for script load or element readiness
-        intervalId = setInterval(renderWidget, 100);
-
-        // Also try immediately
-        renderWidget();
-
-        // Safety timeout: if not loaded in 3s, force reload or show error (optional, leaving simple for now)
+        // Inject script dynamically
+        const scriptId = 'turnstile-script';
+        if (!document.getElementById(scriptId)) {
+            const script = document.createElement('script');
+            script.id = scriptId;
+            script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=turnstileCallback";
+            script.async = true;
+            script.defer = true;
+            document.body.appendChild(script);
+        } else if ((window as any).turnstile) {
+            // Already loaded, trigger manually
+            (window as any).turnstileCallback();
+        }
 
         return () => {
-            if (intervalId) clearInterval(intervalId);
+            // Cleanup if needed, but usually scripts persist
+            delete (window as any).turnstileCallback;
         };
     }, [onVerified]);
 
@@ -63,7 +66,7 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
                 {/* Captcha Widget */}
                 <div className="mb-12 min-h-[65px] flex flex-col justify-center">
                     <div ref={captchaRef} id="turnstile-widget"></div>
-                    {!isWidgetLoaded && <div className="text-sm text-gray-500 animate-pulse mt-2">Loading security check...</div>}
+                    <div className="mt-2 text-sm text-red-400">{error}</div>
                 </div>
 
             </div>
