@@ -9,20 +9,23 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
     const [rayId] = useState(() => Math.random().toString(16).substr(2, 16));
     const [error, setError] = useState<string | null>(null);
 
+    const rendered = useRef(false);
+
     useEffect(() => {
         // Define global callback
         (window as any).turnstileCallback = () => {
-            if (captchaRef.current && (window as any).turnstile) {
+            if (captchaRef.current && (window as any).turnstile && !rendered.current) {
                 try {
+                    rendered.current = true; // Prevent double-render
                     (window as any).turnstile.render(captchaRef.current, {
-                        sitekey: '1x00000000000000000000AA', // Test Key (Guaranteed Success)
+                        sitekey: '1x00000000000000000000AA', // Test Key
                         theme: 'dark',
                         callback: (token: string) => {
                             setTimeout(onVerified, 800);
                         },
                         'error-callback': () => {
-                            // Fail-Open Logic: If captcha fails (e.g. domain mismatch), let user in anyway after delay
-                            console.warn("Turnstile failed. Bypassing for user UX.");
+                            // Fail-Open Logic
+                            console.warn("Turnstile failed. Bypassing...");
                             setTimeout(onVerified, 2000);
                         }
                     });
@@ -58,11 +61,11 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
 
                 {/* Header */}
                 <h1 className="text-4xl font-medium mb-2 text-white">itverse.site</h1>
-                <h2 className="text-2xl font-normal mb-6 text-[#d9d9d9]">Performing security verification</h2>
+                <h2 className="text-2xl font-normal mb-6 text-[#d9d9d9]">Performing security verification...</h2>
 
                 {/* Description */}
                 <p className="text-base mb-8 leading-relaxed max-w-2xl">
-                    This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.
+                    This website uses a security service to protect against malicious bots. Please wait while we verify your connection.
                 </p>
 
                 {/* Captcha Widget */}
