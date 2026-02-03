@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ShieldCheck, Lock, Globe } from 'lucide-react';
 
 interface SecurityCheckProps {
     onVerified: () => void;
@@ -7,25 +6,22 @@ interface SecurityCheckProps {
 
 const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
     const captchaRef = useRef<HTMLDivElement>(null);
-    const [status, setStatus] = useState<'initializing' | 'verifying' | 'success'>('initializing');
+    const [rayId] = useState(() => Math.random().toString(16).substr(2, 16));
 
     useEffect(() => {
         // Double-check if Turnstile script is loaded
         const checkTurnstile = setInterval(() => {
             if ((window as any).turnstile) {
                 clearInterval(checkTurnstile);
-                setStatus('verifying');
 
                 try {
-                    // Primitive clear
                     if (captchaRef.current) captchaRef.current.innerHTML = '';
 
                     (window as any).turnstile.render(captchaRef.current, {
-                        sitekey: '0x4AAAAAAACXVzz9vq7YbFpi', // Your Production Key
+                        sitekey: '0x4AAAAAAACXVzz9vq7YbFpi', // Production Key
                         theme: 'dark',
                         callback: (token: string) => {
-                            setStatus('success');
-                            setTimeout(onVerified, 800); // Short delay to show success state
+                            setTimeout(onVerified, 500);
                         },
                     });
                 } catch (e) {
@@ -38,57 +34,33 @@ const SecurityCheck: React.FC<SecurityCheckProps> = ({ onVerified }) => {
     }, [onVerified]);
 
     return (
-        <div className="fixed inset-0 z-[9999] bg-[#05050a] flex items-center justify-center p-4 text-white font-sans">
-            <div className="max-w-md w-full bg-[#0a0a12] border border-white/10 rounded-xl p-8 shadow-2xl relative overflow-hidden">
+        <div className="fixed inset-0 z-[9999] bg-black text-white font-sans flex flex-col items-center justify-center p-4">
+            <div className="max-w-screen-md w-full">
 
                 {/* Header */}
-                <div className="flex items-center gap-4 mb-8">
-                    <div className="w-12 h-12 rounded bg-white/5 flex items-center justify-center border border-white/10">
-                        {status === 'success' ? (
-                            <ShieldCheck className="text-green-500 animate-in zoom-in" size={24} />
-                        ) : (
-                            <Lock className="text-gray-400" size={24} />
-                        )}
-                    </div>
+                <h1 className="text-4xl md:text-5xl font-bold mb-4">itverse.site</h1>
+                <h2 className="text-2xl md:text-3xl font-medium mb-8">Performing security verification</h2>
+
+                {/* Description */}
+                <p className="text-gray-300 text-base md:text-lg mb-8 leading-relaxed max-w-2xl">
+                    This website uses a security service to protect against malicious bots. This page is displayed while the website verifies you are not a bot.
+                </p>
+
+                {/* Captcha Widget */}
+                <div className="mb-12" style={{ minHeight: '65px' }}>
+                    <div ref={captchaRef}></div>
+                </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="fixed bottom-0 left-0 w-full p-6 border-t border-white/10 bg-black">
+                <div className="max-w-screen-md mx-auto flex flex-col md:flex-row justify-between items-start md:items-center text-gray-500 text-xs gap-2">
+                    <div className="font-mono">Ray ID: <span className="text-gray-300">{rayId}</span></div>
                     <div>
-                        <h1 className="text-xl font-bold tracking-tight">DDoS Protection</h1>
-                        <p className="text-xs text-gray-500 font-mono mt-1">CLOUDFLARE_SECURE_NODE</p>
+                        Performance & Security by <a href="#" className="underline hover:text-gray-300">Cloudflare</a>
                     </div>
                 </div>
-
-                {/* Main Content */}
-                <div className="space-y-6">
-                    <p className="text-gray-300 text-sm leading-relaxed">
-                        Checking if the site connection is secure. This verification is required to proceed.
-                    </p>
-
-                    {/* Captcha Container */}
-                    <div className="min-h-[65px] flex justify-center bg-[#05050a] rounded-lg p-2 border border-white/5">
-                        <div ref={captchaRef}></div>
-                    </div>
-
-                    {status === 'success' && (
-                        <div className="text-center text-green-500 text-xs font-bold uppercase tracking-widest animate-pulse">
-                            Verification Successful
-                        </div>
-                    )}
-                </div>
-
-                {/* Footer */}
-                <div className="mt-8 pt-6 border-t border-white/5 flex justify-between items-center text-[10px] text-gray-600">
-                    <div className="flex items-center gap-2">
-                        <Globe size={12} />
-                        <span>Ray ID: {Math.random().toString(36).substring(7).toUpperCase()}</span>
-                    </div>
-                    <div>Performance & Security by Cloudflare</div>
-                </div>
-
-                {/* Top loader bar */}
-                {status !== 'success' && (
-                    <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
-                        <div className="h-full bg-purple-500/50 w-1/3 animate-[shimmer_2s_infinite]"></div>
-                    </div>
-                )}
             </div>
         </div>
     );
