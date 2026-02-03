@@ -47,7 +47,7 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                     // Clear previous instances if any (primitive way)
                     captchaRef.current.innerHTML = '';
                     (window as any).turnstile.render(captchaRef.current, {
-                        sitekey: '1x00000000000000000000AA', // CLOUDFLARE TEST KEY - REPLACE IN PRODUCTION
+                        sitekey: '0x4AAAAAAACXVzz9vq7YbFpi', // Production Site Key
                         theme: 'dark',
                         callback: (token: string) => setCaptchaToken(token),
                         'expired-callback': () => setCaptchaToken(null),
