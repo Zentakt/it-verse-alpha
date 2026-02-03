@@ -15,11 +15,9 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<'idle' | 'scanning' | 'success'>('idle');
-    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
     const formRef = useRef<HTMLDivElement>(null);
-    const captchaRef = useRef<HTMLDivElement>(null);
 
     // Initial Focus & Animation
     useEffect(() => {
@@ -38,41 +36,9 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
         return () => ctx.revert();
     }, []);
 
-    // Turnstile Initialization
-    useEffect(() => {
-        // Function to verify if turnstile is loaded
-        const initTurnstile = () => {
-            if (captchaRef.current && (window as any).turnstile) {
-                try {
-                    // Clear previous instances if any (primitive way)
-                    captchaRef.current.innerHTML = '';
-                    (window as any).turnstile.render(captchaRef.current, {
-                        sitekey: '0x4AAAAAAACXVzz9vq7YbFpi', // Production Site Key
-                        theme: 'dark',
-                        callback: (token: string) => setCaptchaToken(token),
-                        'expired-callback': () => setCaptchaToken(null),
-                    });
-                } catch (e) {
-                    console.error("Turnstile render error:", e);
-                }
-            }
-        };
-
-        // Try to init immediately, and also set a small timeout in case script is async loading
-        initTurnstile();
-        const timer = setTimeout(initTurnstile, 1000);
-
-        return () => clearTimeout(timer);
-    }, []);
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!username || !password) return;
-
-        if (!captchaToken) {
-            alert("Security Check Required: Please complete the CAPTCHA.");
-            return;
-        }
 
         setIsLoading(true);
         setStatus('scanning');
@@ -183,8 +149,6 @@ const LoginView: React.FC<LoginViewProps> = ({ currentTeam, onLogin }) => {
                         />
                     </div>
 
-                    {/* Captcha */}
-                    <div className="anim-input flex justify-center py-2 min-h-[65px]" ref={captchaRef}></div>
 
                     {/* Submit Button */}
                     <div className="anim-input pt-4">

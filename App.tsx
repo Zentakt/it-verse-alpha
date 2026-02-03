@@ -18,6 +18,7 @@ import LoginView from './components/LoginView';
 import { AppState, GameEvent, Match, Team, UserProfile, Challenge } from './types';
 import { INITIAL_EVENTS, TEAMS as INITIAL_TEAMS, INITIAL_PROFILE } from './constants';
 import confetti from 'canvas-confetti';
+import SecurityCheck from './components/SecurityCheck'; // New Import
 
 const API_URL = '/api';
 
@@ -96,6 +97,7 @@ const saveTeamsToLocalStorage = (teams: Record<string, Team>) => {
 };
 
 const App: React.FC = () => {
+  const [isVerified, setIsVerified] = useState(false); // New Security State
   const [introStage, setIntroStage] = useState<IntroStage>('loader');
   const [showPortal, setShowPortal] = useState(false);
   const teamSectionRef = useRef<HTMLDivElement>(null);
@@ -977,6 +979,13 @@ const App: React.FC = () => {
       bgMode = 'cruise';
       bgColor = teams[appState.selectedTeamId].color;
     }
+  }
+
+  // Security Check Logic
+  if (!isVerified) {
+    return (
+      <SecurityCheck onVerified={() => setIsVerified(true)} />
+    );
   }
 
   // Show loading until data is ready
