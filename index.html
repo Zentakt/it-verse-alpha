@@ -1,129 +1,194 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>IT-VERSE</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #0f0f1a;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #7c3aed;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #a78bfa;
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IT-VERSE</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0f0f1a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #7c3aed;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a78bfa;
+    }
+
+    /* Glitch Animations */
+    @keyframes glitch-anim-1 {
+      0% {
+        clip-path: inset(20% 0 80% 0);
+        transform: translate(-2px, 1px);
       }
 
-      /* Glitch Animations */
-      @keyframes glitch-anim-1 {
-        0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 1px); }
-        20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, -1px); }
-        40% { clip-path: inset(40% 0 50% 0); transform: translate(-2px, 2px); }
-        60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, -2px); }
-        80% { clip-path: inset(10% 0 70% 0); transform: translate(-1px, 1px); }
-        100% { clip-path: inset(30% 0 50% 0); transform: translate(1px, -1px); }
-      }
-      
-      @keyframes glitch-anim-2 {
-        0% { clip-path: inset(10% 0 60% 0); transform: translate(2px, -1px); }
-        20% { clip-path: inset(80% 0 5% 0); transform: translate(-2px, 1px); }
-        40% { clip-path: inset(20% 0 50% 0); transform: translate(2px, 1px); }
-        60% { clip-path: inset(60% 0 20% 0); transform: translate(-2px, -1px); }
-        80% { clip-path: inset(40% 0 40% 0); transform: translate(1px, 2px); }
-        100% { clip-path: inset(50% 0 30% 0); transform: translate(-1px, 1px); }
-      }
-      
-      .glitch-effect {
-        position: relative;
-        display: inline-block; /* Ensure effect wraps text tightly */
-      }
-      
-      .glitch-effect::before,
-      .glitch-effect::after {
-        content: attr(data-text);
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: transparent; /* Transparent background to fix black block issue */
-      }
-      
-      .glitch-effect::before {
-        left: 2px;
-        text-shadow: -2px 0 #ff00de;
-        clip-path: inset(0);
-        animation: glitch-anim-1 2.5s infinite linear alternate-reverse;
-      }
-      
-      .glitch-effect::after {
-        left: -2px;
-        text-shadow: 2px 0 #00ffff;
-        clip-path: inset(0);
-        animation: glitch-anim-1 3.5s infinite linear alternate-reverse;
+      20% {
+        clip-path: inset(60% 0 10% 0);
+        transform: translate(2px, -1px);
       }
 
-      @keyframes blink-fast {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.3; }
+      40% {
+        clip-path: inset(40% 0 50% 0);
+        transform: translate(-2px, 2px);
       }
 
-      body {
-        font-family: 'Inter', sans-serif; /* Changed to Inter for readability */
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+      60% {
+        clip-path: inset(80% 0 5% 0);
+        transform: translate(2px, -2px);
       }
-      
-      h1, h2, h3, h4, .font-cyber, .font-pixel {
-        font-family: 'Jersey 10', sans-serif;
-        letter-spacing: 0.05em;
+
+      80% {
+        clip-path: inset(10% 0 70% 0);
+        transform: translate(-1px, 1px);
       }
-    </style>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              'sans': ['"Inter"', 'sans-serif'],
-              'serif': ['"Jersey 10"', 'sans-serif'],
-              'mono': ['"Jersey 10"', 'sans-serif'],
-              'pixel': ['"Jersey 10"', 'sans-serif'],
-              'cyber': ['"Jersey 10"', 'sans-serif'],
-              'ui': ['"Inter"', 'sans-serif'],
+
+      100% {
+        clip-path: inset(30% 0 50% 0);
+        transform: translate(1px, -1px);
+      }
+    }
+
+    @keyframes glitch-anim-2 {
+      0% {
+        clip-path: inset(10% 0 60% 0);
+        transform: translate(2px, -1px);
+      }
+
+      20% {
+        clip-path: inset(80% 0 5% 0);
+        transform: translate(-2px, 1px);
+      }
+
+      40% {
+        clip-path: inset(20% 0 50% 0);
+        transform: translate(2px, 1px);
+      }
+
+      60% {
+        clip-path: inset(60% 0 20% 0);
+        transform: translate(-2px, -1px);
+      }
+
+      80% {
+        clip-path: inset(40% 0 40% 0);
+        transform: translate(1px, 2px);
+      }
+
+      100% {
+        clip-path: inset(50% 0 30% 0);
+        transform: translate(-1px, 1px);
+      }
+    }
+
+    .glitch-effect {
+      position: relative;
+      display: inline-block;
+      /* Ensure effect wraps text tightly */
+    }
+
+    .glitch-effect::before,
+    .glitch-effect::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      /* Transparent background to fix black block issue */
+    }
+
+    .glitch-effect::before {
+      left: 2px;
+      text-shadow: -2px 0 #ff00de;
+      clip-path: inset(0);
+      animation: glitch-anim-1 2.5s infinite linear alternate-reverse;
+    }
+
+    .glitch-effect::after {
+      left: -2px;
+      text-shadow: 2px 0 #00ffff;
+      clip-path: inset(0);
+      animation: glitch-anim-1 3.5s infinite linear alternate-reverse;
+    }
+
+    @keyframes blink-fast {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      /* Changed to Inter for readability */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    .font-cyber,
+    .font-pixel {
+      font-family: 'Jersey 10', sans-serif;
+      letter-spacing: 0.05em;
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'sans': ['"Inter"', 'sans-serif'],
+            'serif': ['"Jersey 10"', 'sans-serif'],
+            'mono': ['"Jersey 10"', 'sans-serif'],
+            'pixel': ['"Jersey 10"', 'sans-serif'],
+            'cyber': ['"Jersey 10"', 'sans-serif'],
+            'ui': ['"Inter"', 'sans-serif'],
+          },
+          colors: {
+            purple: {
+              400: '#a78bfa',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              900: '#4c1d95',
             },
-            colors: {
-              purple: {
-                400: '#a78bfa',
-                500: '#8b5cf6',
-                600: '#7c3aed',
-                900: '#4c1d95',
-              },
-              neon: {
-                pink: '#ff00de',
-                cyan: '#00ffff',
-              }
-            },
-            animation: {
-               'blink-fast': 'blink-fast 0.2s steps(2, start) infinite',
-               'spin-slow': 'spin 3s linear infinite',
+            neon: {
+              pink: '#ff00de',
+              cyan: '#00ffff',
             }
+          },
+          animation: {
+            'blink-fast': 'blink-fast 0.2s steps(2, start) infinite',
+            'spin-slow': 'spin 3s linear infinite',
           }
         }
       }
-    </script>
-<script type="importmap">
+    }
+  </script>
+  <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@^19.2.3",
@@ -139,14 +204,18 @@
   }
 }
 </script>
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+
 </head>
-  <body class="bg-[#05050a] text-white overflow-x-hidden antialiased selection:bg-neon-pink selection:text-white">
-    <div id="root"></div>
-    <!-- Removed Scanline Overlay -->
-    <div class="fixed inset-0 pointer-events-none z-40 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]"></div>
-    
-    <!-- IMPORTANT: This script tag loads your React app. It was missing. -->
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body class="bg-[#05050a] text-white overflow-x-hidden antialiased selection:bg-neon-pink selection:text-white">
+  <div id="root"></div>
+  <!-- Removed Scanline Overlay -->
+  <div
+    class="fixed inset-0 pointer-events-none z-40 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]">
+  </div>
+
+  <!-- IMPORTANT: This script tag loads your React app. It was missing. -->
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>
